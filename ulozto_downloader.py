@@ -1,10 +1,5 @@
 #!/usr/bin/python3
-"""Uloz.to quick multiple sessions downloader.
-
-It is needed to install these two packages (names of debian packages, for other systems they may be different):
-	python3-tk
-	python3-pil.imagetk
-"""
+"""Uloz.to quick multiple sessions downloader."""
 import os
 import sys
 import argparse
@@ -14,175 +9,47 @@ import re
 import time
 from datetime import timedelta
 import requests
-import urllib
-# Imports for GUI:
-import tkinter as tk
-from PIL import Image, ImageTk
-from io import BytesIO
 
 CLI_STATUS_STARTLINE = 5
-XML_HEADERS = {"X-Requested-With": "XMLHttpRequest"}
 DEFAULT_PARTS = 10
 
 #####################
 
 
-def parse_page(url):
-	"""Open the Uloz.to page of the download and return cookies, parsed filename and parsed form data.
+def parse_filename(url):
+	"""Open the Uloz.to page of the download and return parsed filename.
 
 		Arguments:
 			url (str): URL of the page with file
 
 		Returns:
-			RequestsCookieJar: Obtained cookies from the page
 			str: Parsed filename from the page
-			dict: Parsed data from the page to be send when requesting CAPTCHA
 
 		Raises:
 			RuntimeError
 	"""
 
-	def parse(text, regex):
-		p = re.compile(regex, re.IGNORECASE)
-		result = p.findall(text)
-		if len(result) == 0:
-			raise RuntimeError("Cannot parse Uloz.to page to get download information")
-		return result[0]
-
 	r = requests.get(url)
 
-	form_data = {
-		# <input type="hidden" name="sign_a" id="frm-download-freeDownloadTab-freeDownloadForm-sign_a" value="85179a2a2b28fbe512b757cad9b9446a">
-		'sign_a': parse(r.text, r'<input [^>]* name="sign_a" [^>]* value="([^>]*)">'),
-
-		# <input type="hidden" name="adi" id="frm-download-freeDownloadTab-freeDownloadForm-adi" value="-2">
-		'adi': parse(r.text, r'<input [^>]* name="adi" [^>]* value="([^>]*)">'),
-	}
-	filename = parse(r.text, r'<title>(.*) \| Ulož.to</title>')
-
-	return r.cookies, filename, form_data
+	regex = re.compile(r'<title>(.*) \| Ulož.to</title>', re.IGNORECASE)
+	result = regex.findall(r.text)
+	if len(result) == 0:
+		raise RuntimeError("Cannot parse Uloz.to page to get download information")
+	return result[0]
 
 
-def get_new_captcha(url, cookies, form_data):
-	"""Get CAPTCHA url and form parameters from given page.
+def get_download_link(url):
+	"""Get download link from given page URL.
 
 		Arguments:
 			url (str): URL of the page with file
-			cookies (RequestsCookieJar): Cookies to be used for CAPTCHA request
-			form_data (dict): Form data to be used for CAPTCHA request
-
-		Returns:
-			dict: Parsed JSON with parameters of the CAPTCHA
-	"""
-
-	r = requests.post(url=url, data={
-		"_do": "download-freeDownloadTab-freeDownloadForm-submit",
-		"sign_a": form_data['sign_a'],
-		'adi': form_data['adi'],
-	}, headers=XML_HEADERS, cookies=cookies)
-	return r.json()
-
-
-def post_captcha_answer(url, cookies, captcha_data, captcha_answer):
-	"""Do POST request with CAPTCHA solution.
-
-		Arguments:
-			url (str): URl of the page with file
-			cookies (RequestsCookieJar): Cookies to be used for CAPTCHA request
-			captcha_data (dict): Form data to be used for CAPTCHA request
-			captcha_answer (str): Answer to the CAPTCHA
-
-		Returns:
-			dict: Parsed JSON with results. On success it contains download URL, on failure it contains parameters of the new CAPTCHA
-	"""
-
-	nfv = captcha_data['new_form_values']
-	data = {
-		'_do': 'download-freeDownloadTab-freeDownloadForm-submit',
-		'_token_': nfv['_token_'],
-		'adi': nfv['adi'],
-		'captcha_type': captcha_data['version'],
-		'captcha_value': captcha_answer,
-		'cid': nfv['cid'],
-		'hash': nfv['xapca_hash'],
-		'salt': nfv['xapca_salt'],
-		'sign': nfv['sign'],
-		'sign_a': nfv['sign_a'],
-		'timestamp': nfv['xapca_timestamp'],
-		'ts': nfv['ts']
-	}
-	r = requests.post(url, data=data, headers=XML_HEADERS, cookies=cookies)
-	return r.json()
-
-
-def get_captcha_user_input(img_url):
-	"""Display captcha from given URL and ask user for input in GUI window.
-
-		Arguments:
-			img_url (str): URL of the image with CAPTCHA
-
-		Returns:
-			str: User answer to the CAPTCHA
-	"""
-
-	root = tk.Tk()
-	root.focus_force()
-	root.title("Opiš kód z obrázku")
-	root.geometry("300x140")  # use width x height + x_offset + y_offset (no spaces!)
-
-	def disable_event():
-		pass
-
-	root.protocol("WM_DELETE_WINDOW", disable_event)
-
-	u = urllib.request.urlopen(img_url)
-	raw_data = u.read()
-	u.close()
-
-	im = Image.open(BytesIO(raw_data))
-	photo = ImageTk.PhotoImage(im)
-	label = tk.Label(image=photo)
-	label.image = photo
-	label.pack()
-
-	entry = tk.Entry(root)
-	entry.pack()
-	entry.bind('<Return>', lambda event: root.quit())
-	entry.focus()
-
-	tk.Button(root, text='Send', command=root.quit).pack()
-
-	root.mainloop()  # Wait for user input
-	value = entry.get()
-	root.destroy()
-	return value
-
-
-def get_download_link(url, print_func=print):
-	"""Get download link from given page URL, it calls CAPTCHA related functions.
-
-		Arguments:
-			url (str): URL of the page with file
-			print_func (func): Function used for printing log (default is bultin 'print')
 
 		Returns:
 			str: URL for downloading the file
 	"""
 
-	cookies, filename, form_data = parse_page(url)
-	captcha_data = get_new_captcha(url, cookies, form_data)
-
-	print_func("CAPTCHA image challenge...")
-	while captcha_data['status'] != 'ok':
-		captcha_answer = get_captcha_user_input("http:" + captcha_data['new_captcha_data']['image'])
-		# print_func("CAPTCHA input from user: {}".format(captcha_answer))
-		captcha_data = post_captcha_answer(url, cookies, captcha_data, captcha_answer)
-
-		if captcha_data['status'] != 'ok':
-			print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
-
-	# print_func('URL obtained: {}'.format(captcha_data['url']))
-	return captcha_data['url']
+	page = requests.get('{}?do=slowDirectDownload'.format(url), allow_redirects=False)
+	return page.headers['Location']
 
 
 def print_status(id, text):
@@ -267,7 +134,7 @@ def download(url, parts=10, target_dir=""):
 	print("Starting downloading for url '{}'".format(url))
 	# 1.1 Get all needed informations
 	print("Getting info (filename, filesize, ...)")
-	final_filename = parse_page(url)[1]
+	final_filename = parse_filename(url)
 	# Do check
 	if os.path.isfile(final_filename):
 		print("WARNING: File '{}' already exists, overwrite it? [y/n] ".format(final_filename), end="")
@@ -284,7 +151,7 @@ def download(url, parts=10, target_dir=""):
 	downloads = [
 		{
 			'id': i + 1,
-			'base_url': url,
+			'url': download_url,
 			'filename': os.path.join(
 				target_dir,
 				final_filename + ".part{0:0{width}}of{1}".format(i + 1, parts, width=len(str(parts)))
@@ -305,7 +172,7 @@ def download(url, parts=10, target_dir=""):
 		round(part_size / 1024**2, 2),
 	))
 	for part in downloads:
-		print_status(part['id'], "Waiting for CAPTCHA...")
+		print_status(part['id'], "Waiting for download to start...")
 
 	# 3. Start all downloads
 	for part in downloads:
@@ -318,15 +185,6 @@ def download(url, parts=10, target_dir=""):
 			if part['downloaded'] == part['size']:
 				print_status(id, "Already downloaded from previous run, skipping")
 				continue
-
-		if 'url' not in part:
-			# Reuse already solved CAPTCHA challange for the first not downloaded part
-			if download_url is not None:
-				part['url'] = download_url
-				download_url = None
-			else:
-				print_status(id, "Solving CAPTCHA...")
-				part['url'] = get_download_link(part['base_url'], print_func=lambda msg: print_status(id, msg))
 
 		# Start download process in another process (parallel):
 		p = mp.Process(target=download_part, args=(part,))
