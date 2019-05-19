@@ -75,11 +75,12 @@ def download_part(part):
 
 	id = part['id']
 	print_status(id, "Starting download")
+
 	part['started'] = time.time()
 	part['now_downloaded'] = 0
 
 	# Note the stream=True parameter
-	r = requests.get(part['url'], stream=True, allow_redirects=True, headers={
+	r = requests.get(get_download_link(part['base_url']), stream=True, allow_redirects=True, headers={
 		"Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
 	})
 	with open(part['filename'], 'ab') as f:
@@ -101,6 +102,7 @@ def download_part(part):
 					str(timedelta(seconds=round(elapsed))),
 					str(timedelta(seconds=round(remaining))),
 				))
+
 	part['elapsed'] = time.time() - part['started']
 	print_status(id, "Succesfully downloaded in {}".format(str(timedelta(seconds=round(part['elapsed'])))))
 
@@ -151,7 +153,7 @@ def download(url, parts=10, target_dir=""):
 	downloads = [
 		{
 			'id': i + 1,
-			'url': download_url,
+			'base_url': url,
 			'filename': os.path.join(
 				target_dir,
 				final_filename + ".part{0:0{width}}of{1}".format(i + 1, parts, width=len(str(parts)))
