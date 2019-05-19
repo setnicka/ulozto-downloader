@@ -22,3 +22,5 @@ Také existuje [jiná velmi podobná Pythoní verze](https://github.com/yaqwsx/u
 
 ## Requirements
 * Python 3
+* Nějaké knihovny pro Python 3:
+  * python-magic (balík `python3-magic` na Debianu)

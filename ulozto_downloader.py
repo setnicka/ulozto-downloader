@@ -8,6 +8,8 @@ import multiprocessing as mp
 import re
 import time
 from datetime import timedelta
+
+import magic
 import requests
 
 CLI_STATUS_STARTLINE = 5
@@ -75,32 +77,50 @@ def download_part(part):
 
 	id = part['id']
 	print_status(id, "Starting download")
-	part['started'] = time.time()
-	part['now_downloaded'] = 0
 
-	# Note the stream=True parameter
-	r = requests.get(part['url'], stream=True, allow_redirects=True, headers={
-		"Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
-	})
-	with open(part['filename'], 'ab') as f:
-		for chunk in r.iter_content(chunk_size=1024):
-			if chunk:  # filter out keep-alive new chunks
-				f.write(chunk)
-				part['downloaded'] += len(chunk)
-				part['now_downloaded'] += len(chunk)
-				elapsed = time.time() - part['started']
+	success = False
+	while not success:
+		part['started'] = time.time()
+		part['now_downloaded'] = 0
 
-				# Print status line
-				speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0  # in bytes per second
-				remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0  # in seconds
+		# Note the stream=True parameter
+		r = requests.get(part['url'], stream=True, allow_redirects=True, headers={
+				"Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
+		})
+		with open(part['filename'], 'ab') as f:
+			for chunk in r.iter_content(chunk_size=1024):
+				if chunk:  # filter out keep-alive new chunks
+					f.write(chunk)
+					part['downloaded'] += len(chunk)
+					part['now_downloaded'] += len(chunk)
+					elapsed = time.time() - part['started']
 
-				print_status(id, "{}%\t{:.2f}/{:.2f}MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
-					round(part['downloaded'] / part['size'] * 100, 1),
-					round(part['downloaded'] / 1024**2, 2), round(part['size'] / 1024**2, 2),
-					round(speed / 1024, 2),
-					str(timedelta(seconds=round(elapsed))),
-					str(timedelta(seconds=round(remaining))),
-				))
+					# Print status line
+					speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0  # in bytes per second
+					remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0  # in seconds
+
+					print_status(id, "{}%\t{:.2f}/{:.2f}MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
+						round(part['downloaded'] / part['size'] * 100, 1),
+						round(part['downloaded'] / 1024**2, 2), round(part['size'] / 1024**2, 2),
+						round(speed / 1024, 2),
+						str(timedelta(seconds=round(elapsed))),
+						str(timedelta(seconds=round(remaining))),
+					))
+
+		# Check whether we downloaded the actual data or got an error page
+		if magic.from_file(part['filename'], mime=True) == 'text/html':
+			regex = re.compile(r'<title>.*z Vašeho počítače se již stahuje</title>', re.IGNORECASE)
+			with open(part['filename'], 'r') as f:
+				result = regex.findall(f.read())  # This can be memory inefficient, but html pages are usually small
+
+			if len(result) > 0:
+				print_status(id, "Rejected by server, trying again")
+				os.remove(part['filename'])
+				part['downloaded'] = 0
+				continue
+
+		success = True
+
 	part['elapsed'] = time.time() - part['started']
 	print_status(id, "Succesfully downloaded in {}".format(str(timedelta(seconds=round(part['elapsed'])))))
 
