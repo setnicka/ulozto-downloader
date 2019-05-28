@@ -217,15 +217,15 @@ def download(url, parts=10, target_dir=""):
 
 ###########################
 
+if __name__ == "__main__":
+	parser = argparse.ArgumentParser(
+		description='Download file from Uloz.to using multiple parallel downloads.',
+		formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+	)
+	parser.add_argument('url', metavar='URL', type=str, help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
+	parser.add_argument('--parts', metavar='N', type=int, default=10, help='Number of parts that will be downloaded in parallel')
+	parser.add_argument('--output', metavar='DIRECTORY', type=str, default="./", help='Target directory')
 
-parser = argparse.ArgumentParser(
-	description='Download file from Uloz.to using multiple parallel downloads.',
-	formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-)
-parser.add_argument('url', metavar='URL', type=str, help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
-parser.add_argument('--parts', metavar='N', type=int, default=10, help='Number of parts that will be downloaded in parallel')
-parser.add_argument('--output', metavar='DIRECTORY', type=str, default="./", help='Target directory')
+	args = parser.parse_args()
 
-args = parser.parse_args()
-
-download(args.url, args.parts, args.output)
+	download(args.url, args.parts, args.output)
