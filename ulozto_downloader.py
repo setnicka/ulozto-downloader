@@ -10,6 +10,7 @@ import time
 from datetime import timedelta
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 CLI_STATUS_STARTLINE = 5
 DEFAULT_PARTS = 10
@@ -38,11 +39,11 @@ def parse_filename(url):
 		raise RuntimeError("Cannot parse Uloz.to page to get download information")
 	return result[0]
 
-
 def get_download_link(session, url):
 	"""Get download link from given page URL.
 
 		Arguments:
+			session (requests.Session): session 
 			url (str): URL of the page with file
 
 		Returns:
@@ -53,9 +54,10 @@ def get_download_link(session, url):
 	return page.headers['Location']
 
 def get_download_link_premium(session, url):
-	"""Get download link from given page URL.
+	"""Get download link from given page URL using premium.
 
 		Arguments:
+			session (requests.Session): session 
 			url (str): URL of the page with file
 
 		Returns:
@@ -159,11 +161,21 @@ def download(url, username, password, parts=10, target_dir=""):
 			sys.exit(1)
 
 	session = requests.Session()
+	parsed_url = urlparse(url)
+	result = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_url)
+
+	if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
+		page = session.get(url, allow_redirects=False)
+		url = page.headers['Location']
+		if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
+			page = session.get(url, allow_redirects=False)
+			url = page.headers['Location']
+
 	if password and username:
-		response = session.get('https://uloz.to/login')
+		response = session.get('{uri.scheme}://{uri.netloc}/login'.format(uri=parsed_url))
 		soup = BeautifulSoup(response.text, 'lxml')
 		token = soup.select_one('input[name="_token_"]')['value']
-		response = session.post('https://uloz.to/login', data={"username":username, "password":password, "login":"Přihlásit", "_token_":token, "_do":"loginForm-form-submit"})
+		response = session.post('{uri.scheme}://{uri.netloc}/login'.format(uri=parsed_url), data={"username":username, "password":password, "login":"Přihlásit", "_token_":token, "_do":"loginForm-form-submit"})
 		download_url = get_download_link_premium(session, url)
 	else:
 		download_url = get_download_link(session, url)
