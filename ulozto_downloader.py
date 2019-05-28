@@ -47,7 +47,7 @@ def get_download_link(session, url):
 			url (str): URL of the page with file
 
 		Returns:
-			str: URL for downloading the file
+		G	str: URL for downloading the file
 	"""
 
 	page = session.get('{}?do=slowDirectDownload'.format(url), allow_redirects=False)
@@ -272,4 +272,6 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 
-	download(args.url, args.username, args.password, args.parts, args.output)
+download(args.url, args.username, args.password, args.parts, args.output)
+
+# vim: ts=4 sw=4 noexpandtab syntax=python
