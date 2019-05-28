@@ -273,3 +273,5 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	download(args.url, args.username, args.password, args.parts, args.output)
+
+# vim: ts=4 sw=4 noexpandtab syntax=python
