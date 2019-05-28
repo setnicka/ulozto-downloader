@@ -9,6 +9,8 @@ import re
 import time
 from datetime import timedelta
 import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 CLI_STATUS_STARTLINE = 5
 DEFAULT_PARTS = 10
@@ -37,18 +39,32 @@ def parse_filename(url):
 		raise RuntimeError("Cannot parse Uloz.to page to get download information")
 	return result[0]
 
-
-def get_download_link(url):
+def get_download_link(session, url):
 	"""Get download link from given page URL.
 
 		Arguments:
+			session (requests.Session): session 
+			url (str): URL of the page with file
+
+		Returns:
+		G	str: URL for downloading the file
+	"""
+
+	page = session.get('{}?do=slowDirectDownload'.format(url), allow_redirects=False)
+	return page.headers['Location']
+
+def get_download_link_premium(session, url):
+	"""Get download link from given page URL using premium.
+
+		Arguments:
+			session (requests.Session): session 
 			url (str): URL of the page with file
 
 		Returns:
 			str: URL for downloading the file
 	"""
 
-	page = requests.get('{}?do=slowDirectDownload'.format(url), allow_redirects=False)
+	page = session.get('{}?do=directDownload'.format(url), allow_redirects=False)
 	return page.headers['Location']
 
 
@@ -66,10 +82,11 @@ def print_status(id, text):
 	sys.stdout.flush()
 
 
-def download_part(part):
+def download_part(session, part):
 	"""Download given part of the download.
 
 		Arguments:
+			session (requests.Session): session 
 			part (dict): Specification of the part to download
 	"""
 
@@ -80,20 +97,20 @@ def download_part(part):
 	part['now_downloaded'] = 0
 
 	# Note the stream=True parameter
-	r = requests.get(get_download_link(part['base_url']), stream=True, allow_redirects=True, headers={
+	r = session.get(get_download_link(session, part['base_url']), stream=True, allow_redirects=True, headers={
 		"Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
 	})
 	with open(part['filename'], 'ab') as f:
 		for chunk in r.iter_content(chunk_size=1024):
-			if chunk:  # filter out keep-alive new chunks
+			if chunk:	# filter out keep-alive new chunks
 				f.write(chunk)
 				part['downloaded'] += len(chunk)
 				part['now_downloaded'] += len(chunk)
 				elapsed = time.time() - part['started']
 
 				# Print status line
-				speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0  # in bytes per second
-				remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0  # in seconds
+				speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0	# in bytes per second
+				remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0	# in seconds
 
 				print_status(id, "{}%\t{:.2f}/{:.2f}MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
 					round(part['downloaded'] / part['size'] * 100, 1),
@@ -107,7 +124,7 @@ def download_part(part):
 	print_status(id, "Succesfully downloaded in {}".format(str(timedelta(seconds=round(part['elapsed'])))))
 
 
-def download(url, parts=10, target_dir=""):
+def download(url, username, password, parts=10, target_dir=""):
 	"""Download file from Uloz.to using multiple parallel downloads.
 
 		Arguments:
@@ -143,9 +160,28 @@ def download(url, parts=10, target_dir=""):
 		if input().strip() != 'y':
 			sys.exit(1)
 
-	download_url = get_download_link(url)
+	session = requests.Session()
+	parsed_url = urlparse(url)
+	result = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_url)
 
-	head = requests.head(download_url, allow_redirects=True)
+	if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
+		page = session.head(url, allow_redirects=False)
+		url = page.headers['Location']
+		if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
+			page = session.head(url, allow_redirects=False)
+			url = page.headers['Location']
+
+	if password and username:
+		response = session.get('{uri.scheme}://{uri.netloc}/login'.format(uri=parsed_url))
+		soup = BeautifulSoup(response.text, 'lxml')
+		token = soup.select_one('input[name="_token_"]')['value']
+		response = session.post('{uri.scheme}://{uri.netloc}/login'.format(uri=parsed_url), data={"username":username, "password":password, "login":"Přihlásit", "_token_":token, "_do":"loginForm-form-submit"})
+		download_url = get_download_link_premium(session, url)
+	else:
+		download_url = get_download_link(session, url)
+		
+	head = session.head(download_url, allow_redirects=True)
+
 	total_size = int(head.headers['Content-Length'])
 	part_size = (total_size + (parts - 1)) // parts
 
@@ -189,7 +225,11 @@ def download(url, parts=10, target_dir=""):
 				continue
 
 		# Start download process in another process (parallel):
-		p = mp.Process(target=download_part, args=(part,))
+		if password and username:
+			pass
+		else:
+			session = requests.Session()
+		p = mp.Process(target=download_part, args=(session,part,))
 		p.start()
 		processes.append(p)
 
@@ -225,9 +265,13 @@ if __name__ == "__main__":
 		formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 	)
 	parser.add_argument('url', metavar='URL', type=str, help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
+	parser.add_argument('--username', metavar='USERNAME', type=str, default=False, help='Username')
+	parser.add_argument('--password', metavar='PASSWORD', type=str, default=False, help='Password')
 	parser.add_argument('--parts', metavar='N', type=int, default=10, help='Number of parts that will be downloaded in parallel')
 	parser.add_argument('--output', metavar='DIRECTORY', type=str, default="./", help='Target directory')
 
 	args = parser.parse_args()
 
-	download(args.url, args.parts, args.output)
+download(args.url, args.username, args.password, args.parts, args.output)
+
+# vim: ts=4 sw=4 noexpandtab syntax=python
