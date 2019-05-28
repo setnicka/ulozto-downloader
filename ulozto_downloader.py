@@ -165,10 +165,10 @@ def download(url, username, password, parts=10, target_dir=""):
 	result = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_url)
 
 	if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
-		page = session.get(url, allow_redirects=False)
+		page = session.head(url, allow_redirects=False)
 		url = page.headers['Location']
 		if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
-			page = session.get(url, allow_redirects=False)
+			page = session.head(url, allow_redirects=False)
 			url = page.headers['Location']
 
 	if password and username:
