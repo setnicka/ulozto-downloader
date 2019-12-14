@@ -55,7 +55,8 @@ def parse_page(url):
             return None
         return result[0]
 
-    filename = parse(r.text, r'<title>(.*) \| Ulož.to</title>')
+    # Parse filename only to the first | (Uloz.to sometimes add titles like "name | on-line video | Ulož.to" and so on)
+    filename = parse(r.text, r'<title>([^\|]*)\s+\|.*</title>')
 
     # Some files may be download without CAPTCHA, there is special URL on the parsed page:
     # <a ... href="/file/E7jJsmR2ix73/michal-tucny-prodavac-mp3?do=slowDirectDownload">...</a>
@@ -263,7 +264,7 @@ def download_part(part):
                 ))
 
     part['elapsed'] = time.time() - part['started']
-    print_status(id, "Successfully downloaded {} in {}".format(
+    print_status(id, "Successfully downloaded {}MB in {}".format(
         round(part['downloaded'] / 1024**2, 2),
         str(timedelta(seconds=round(part['elapsed']))),
     ))
