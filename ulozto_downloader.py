@@ -13,6 +13,7 @@ import multiprocessing as mp
 import re
 import time
 from datetime import timedelta
+from urllib.parse import urlparse
 import requests
 
 # Imports for GUI:
@@ -27,6 +28,14 @@ DEFAULT_PARTS = 10
 #####################
 
 
+def parse_single(text, regex):
+    p = re.compile(regex, re.IGNORECASE)
+    result = p.findall(text)
+    if len(result) == 0:
+        return None
+    return result[0]
+
+
 def parse_page(url):
     """Open the Uloz.to page of the download and return cookies, parsed filename and parsed form data.
 
@@ -36,59 +45,45 @@ def parse_page(url):
         Returns:
             str: Parsed filename from the page
             str or None: URL of the slow direct download
+            str or None: URL of the CAPTCHA challenge
             RequestsCookieJar: Obtained cookies from the page
-            dict: Parsed data from the page to be send when requesting CAPTCHA
 
         Raises:
             RuntimeError
     """
 
     r = requests.get(url)
+    parsed_url = urlparse(url)
+    baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
+
+    # Get file slug from URL
+    slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
+    if slug is None:
+        raise RuntimeError("Cannot parse file slug from Uloz.to URL")
 
     if r.text.find("Soubor byl smazán") != -1:
         raise RuntimeError("File was deleted from Uloz.to")
 
-    def parse(text, regex):
-        p = re.compile(regex, re.IGNORECASE)
-        result = p.findall(text)
-        if len(result) == 0:
-            return None
-        return result[0]
-
     # Parse filename only to the first | (Uloz.to sometimes add titles like "name | on-line video | Ulož.to" and so on)
-    filename = parse(r.text, r'<title>([^\|]*)\s+\|.*</title>')
+    filename = parse_single(r.text, r'<title>([^\|]*)\s+\|.*</title>')
 
     # Some files may be download without CAPTCHA, there is special URL on the parsed page:
-    # <a ... href="/file/E7jJsmR2ix73/michal-tucny-prodavac-mp3?do=slowDirectDownload">...</a>
-    slowDirectDownload = parse(r.text, r'href="([^"]*\?do=slowDirectDownload)"')
+    # <a ... href="/slowDownload/E7jJsmR2ix73">...</a>
+    slowDownloadURL = parse_single(r.text, r'href="(/slowDownload/[^"]*)"')
+    if slowDownloadURL:
+        slowDownloadURL = baseURL + slowDownloadURL
 
-    form_data = {
-        # <input type="hidden" name="sign_a" id="frm-download-freeDownloadTab-freeDownloadForm-sign_a" value="85179a2a2b28fbe512b757cad9b9446a">
-        'sign_a': parse(r.text, r'<input [^>]* name="sign_a" [^>]* value="([^>]*)">'),
-
-        # <input type="hidden" name="adi" id="frm-download-freeDownloadTab-freeDownloadForm-adi" value="-2">
-        'adi': parse(r.text, r'<input [^>]* name="adi" [^>]* value="([^>]*)">'),
-    }
+    # Other files are protected by CAPTCHA challenge
+    # <a href="javascript:;" data-href="/download-dialog/free/default?fileSlug=apj0q49iETRR" class="c-button c-button__c-white js-free-download-button-dialog t-free-download-button">
+    captchaChallengeURL = parse_single(r.text, r'data-href="(/download-dialog/free/[^"]*)"')
+    if captchaChallengeURL:
+        captchaChallengeURL = baseURL + captchaChallengeURL
 
     # Check if slowDirectDownload or form data for CAPTCHA was parsed
-    if slowDirectDownload is None and (form_data['sign_a'] is None or form_data['adi'] is None):
-        raise RuntimeError("Cannot parse Uloz.to page to get download information, no slowDirectDownload and no CAPTCHA form data found")
+    if slowDownloadURL is None and captchaChallengeURL is None:
+        raise RuntimeError("Cannot parse Uloz.to page to get download information, no slowDownload URL and no CAPTCHA challenge URL found")
 
-    return filename, slowDirectDownload, r.cookies, form_data
-
-
-def get_direct_download_link(url):
-    """Get download link from given page URL.
-
-        Arguments:
-            url (str): URL of the page with file
-
-        Returns:
-            str: URL for downloading the file
-    """
-
-    page = requests.get('{}?do=slowDirectDownload'.format(url), allow_redirects=False)
-    return page.headers['Location']
+    return filename, slowDownloadURL, captchaChallengeURL, r.cookies
 
 
 def get_captcha_download_link(url, print_func=print):
@@ -102,72 +97,68 @@ def get_captcha_download_link(url, print_func=print):
             str: URL for downloading the file
     """
 
-    filename, _, cookies, form_data = parse_page(url)
-    captcha_data = get_new_captcha(url, cookies, form_data)
-
     print_func("CAPTCHA image challenge...")
-    while captcha_data['status'] != 'ok':
-        captcha_answer = get_captcha_user_input("http:" + captcha_data['new_captcha_data']['image'])
+    while True:
+        captcha_image, captcha_data, cookies = get_new_captcha(url)
+        captcha_answer = get_captcha_user_input(captcha_image)
         # print_func("CAPTCHA input from user: {}".format(captcha_answer))
-        captcha_data = post_captcha_answer(url, cookies, captcha_data, captcha_answer)
+        ok, downloadURL = post_captcha_answer(url, captcha_data, captcha_answer, cookies)
+        if ok:
+            # print_func('URL obtained: ' + downloadURL)
+            return downloadURL
+        print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
 
-        if captcha_data['status'] != 'ok':
-            print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
-
-    # print_func('URL obtained: {}'.format(captcha_data['url']))
-    return captcha_data['url']
+    return False
 
 
-def get_new_captcha(url, cookies, form_data):
+def get_new_captcha(url):
     """Get CAPTCHA url and form parameters from given page.
 
         Arguments:
-            url (str): URL of the page with file
-            cookies (RequestsCookieJar): Cookies to be used for CAPTCHA request
-            form_data (dict): Form data to be used for CAPTCHA request
+            url (str): URL of the CAPTCHA challenge form
 
         Returns:
+            str: URL of the CAPTCHA image
             dict: Parsed JSON with parameters of the CAPTCHA
+            RequestsCookieJar: Obtained cookies from the page
     """
 
-    r = requests.post(url=url, data={
-        "_do": "download-freeDownloadTab-freeDownloadForm-submit",
-        "sign_a": form_data['sign_a'],
-        'adi': form_data['adi'],
-    }, headers=XML_HEADERS, cookies=cookies)
-    return r.json()
+    r = requests.get(url)
+
+    # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
+    captcha_image = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
+    if captcha_image is None:
+        raise RuntimeError("Cannot get CAPTCHA image URL")
+
+    captcha_data = {}
+    for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
+        captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
+
+    return "https:" + captcha_image, captcha_data, r.cookies
 
 
-def post_captcha_answer(url, cookies, captcha_data, captcha_answer):
+def post_captcha_answer(url, captcha_data, captcha_answer, cookies):
     """Do POST request with CAPTCHA solution.
 
         Arguments:
-            url (str): URl of the page with file
-            cookies (RequestsCookieJar): Cookies to be used for CAPTCHA request
+            url (str): URL of the CAPTCHA challenge form
             captcha_data (dict): Form data to be used for CAPTCHA request
             captcha_answer (str): Answer to the CAPTCHA
+            cookies (RequestsCookieJar): Cookies from the CAPTCHA challenge page
 
         Returns:
-            dict: Parsed JSON with results. On success it contains download URL, on failure it contains parameters of the new CAPTCHA
+            bool: True on success, False otherwise
+            str: download link in case of success
     """
 
-    nfv = captcha_data['new_form_values']
-    data = {
-        '_do': 'download-freeDownloadTab-freeDownloadForm-submit',
-        '_token_': nfv['_token_'],
-        'adi': nfv['adi'],
-        'captcha_type': captcha_data['version'],
-        'captcha_value': captcha_answer,
-        'cid': nfv['cid'],
-        'hash': nfv['xapca_hash'],
-        'salt': nfv['xapca_salt'],
-        'sign': nfv['sign'],
-        'sign_a': nfv['sign_a'],
-        'timestamp': nfv['xapca_timestamp'],
-        'ts': nfv['ts']
-    }
-    r = requests.post(url, data=data, headers=XML_HEADERS, cookies=cookies)
-    return r.json()
+    captcha_data["captcha_value"] = captcha_answer
+
+    r = requests.post(url, data=captcha_data, headers=XML_HEADERS, cookies=cookies)
+    answer = r.json()
+    if "downloadLink" in answer:
+        return True, answer["downloadLink"]
+    else:
+        return False, ""
 
 
 def get_captcha_user_input(img_url):
@@ -300,13 +291,13 @@ def download(url, parts=10, target_dir=""):
     # 1.1 Get all needed information
     print("Getting info (filename, filesize, ...)")
     try:
-        final_filename, slowDirectDownload, _, _ = parse_page(url)
+        final_filename, slowDownloadURL, captchaChallengeURL, _ = parse_page(url)
     except RuntimeError as e:
         print('Cannot download file: ' + str(e))
         sys.exit(1)
 
-    # It is CAPTCHA protected download if slowDirectDownload URL is not set
-    isCAPTCHA = slowDirectDownload is None
+    # It is CAPTCHA protected download if slowDownloadURL is not set
+    isCAPTCHA = slowDownloadURL is None
 
     # Do check
     if os.path.isfile(final_filename):
@@ -316,10 +307,10 @@ def download(url, parts=10, target_dir=""):
 
     if isCAPTCHA:
         print("CAPTCHA protected download - CAPTCHA challenges will be displayed")
-        download_url = get_captcha_download_link(url)
+        download_url = get_captcha_download_link(captchaChallengeURL)
     else:
         print("You are lucky, this is slow direct download without CAPTCHA :)")
-        download_url = get_direct_download_link(url)
+        download_url = slowDownloadURL
 
     head = requests.head(download_url, allow_redirects=True)
     total_size = int(head.headers['Content-Length'])
@@ -374,9 +365,9 @@ def download(url, parts=10, target_dir=""):
                 download_url = None
             else:
                 print_status(id, "Solving CAPTCHA...")
-                part['download_url'] = get_captcha_download_link(url, print_func=lambda msg: print_status(id, msg))
+                part['download_url'] = get_captcha_download_link(captchaChallengeURL, print_func=lambda msg: print_status(id, msg))
         else:
-            part['download_url'] = get_direct_download_link(url)
+            part['download_url'] = slowDownloadURL
 
         # Start download process in another process (parallel):
         p = mp.Process(target=download_part, args=(part,))
