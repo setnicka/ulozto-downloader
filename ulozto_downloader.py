@@ -67,6 +67,9 @@ def parse_page(url):
     # Parse filename only to the first | (Uloz.to sometimes add titles like "name | on-line video | Ulož.to" and so on)
     filename = parse_single(r.text, r'<title>([^\|]*)\s+\|.*</title>')
 
+    # Replace illegal characters in filename https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+    filename = re.sub(r'[<>:,\"/\\|\?*]', "-", filename)
+
     # Some files may be download without CAPTCHA, there is special URL on the parsed page:
     # <a ... href="/slowDownload/E7jJsmR2ix73">...</a>
     slowDownloadURL = parse_single(r.text, r'href="(/slowDownload/[^"]*)"')
