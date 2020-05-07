@@ -300,8 +300,9 @@ def download(url, parts=10, target_dir=""):
     isCAPTCHA = slowDownloadURL is None
 
     # Do check
-    if os.path.isfile(final_filename):
-        print("WARNING: File '{}' already exists, overwrite it? [y/n] ".format(final_filename), end="")
+    output_filename = os.path.join(target_dir, final_filename)
+    if os.path.isfile(output_filename):
+        print("WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename), end="")
         if input().strip() != 'y':
             sys.exit(1)
 
@@ -320,10 +321,7 @@ def download(url, parts=10, target_dir=""):
     downloads = [
         {
             'id': i + 1,
-            'filename': os.path.join(
-                target_dir,
-                final_filename + ".part{0:0{width}}of{1}".format(i + 1, parts, width=len(str(parts)))
-            ),
+            'filename': "{0}.part{1:0{width}}of{2}".format(output_filename, i + 1, parts, width=len(str(parts))),
             'from': part_size * i,
             'to': min(part_size * (i + 1), total_size) - 1,
             'downloaded': 0,
@@ -388,7 +386,7 @@ def download(url, parts=10, target_dir=""):
 
     # 5. Concatenate all parts into final file and remove partial files
     print("All downloads finished, merging files...")
-    with open(final_filename, "wb") as outfile:
+    with open(output_filename, "wb") as outfile:
         for part in downloads:
             with open(part['filename'], "rb") as infile:
                 outfile.write(infile.read())
@@ -396,7 +394,7 @@ def download(url, parts=10, target_dir=""):
     for part in downloads:
         os.remove(part['filename'])
 
-    print("All files merged, output file is '{}'".format(final_filename))
+    print("All files merged, output file is '{}'".format(output_filename))
 
 
 ###########################
