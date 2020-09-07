@@ -158,8 +158,8 @@ def post_captcha_answer(url, captcha_data, captcha_answer, cookies):
 
     r = requests.post(url, data=captcha_data, headers=XML_HEADERS, cookies=cookies)
     answer = r.json()
-    if "downloadLink" in answer:
-        return True, answer["downloadLink"]
+    if "slowDownloadLink" in answer:
+        return True, answer["slowDownloadLink"]
     else:
         return False, ""
 
