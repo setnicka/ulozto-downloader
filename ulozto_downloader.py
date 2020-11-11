@@ -14,58 +14,13 @@ import time
 from datetime import timedelta
 import requests
 
-# Imports for GUI:
-import tkinter as tk
-from PIL import Image, ImageTk
-from io import BytesIO
-
 from ulozto_downloader.page import Page
+from ulozto_downloader.captcha import tkinter_user_prompt
 
 CLI_STATUS_STARTLINE = 6
 DEFAULT_PARTS = 10
 
 #####################
-
-def captcha_user_prompt(img_url):
-    """Display captcha from given URL and ask user for input in GUI window.
-
-        Arguments:
-            img_url (str): URL of the image with CAPTCHA
-
-        Returns:
-            str: User answer to the CAPTCHA
-    """
-
-    root = tk.Tk()
-    root.focus_force()
-    root.title("Opiš kód z obrázku")
-    root.geometry("300x140")  # use width x height + x_offset + y_offset (no spaces!)
-
-    def disable_event():
-        pass
-
-    root.protocol("WM_DELETE_WINDOW", disable_event)
-
-    u = requests.get(img_url)
-    raw_data = u.content
-
-    im = Image.open(BytesIO(raw_data))
-    photo = ImageTk.PhotoImage(im)
-    label = tk.Label(image=photo)
-    label.image = photo
-    label.pack()
-
-    entry = tk.Entry(root)
-    entry.pack()
-    entry.bind('<Return>', lambda event: root.quit())
-    entry.focus()
-
-    tk.Button(root, text='Send', command=root.quit).pack()
-
-    root.mainloop()  # Wait for user input
-    value = entry.get()
-    root.destroy()
-    return value
 
 
 def print_status(id, text):
@@ -176,7 +131,7 @@ def download(url, parts=10, target_dir=""):
     else:
         print("CAPTCHA protected download - CAPTCHA challenges will be displayed")
         isCAPTCHA = True
-        download_url = page.get_captcha_download_link(captcha_solve_func=captcha_user_prompt)
+        download_url = page.get_captcha_download_link(captcha_solve_func=tkinter_user_prompt)
 
     head = requests.head(download_url, allow_redirects=True)
     total_size = int(head.headers['Content-Length'])
@@ -229,7 +184,7 @@ def download(url, parts=10, target_dir=""):
             else:
                 print_status(id, "Solving CAPTCHA...")
                 part['download_url'] = page.get_captcha_download_link(
-                    captcha_solve_func=captcha_user_prompt,
+                    captcha_solve_func=tkinter_user_prompt,
                     print_func=lambda msg: print_status(id, msg)
                 )
         else:
