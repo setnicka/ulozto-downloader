@@ -105,13 +105,19 @@ def get_captcha_download_link(url, print_func=print):
         captcha_image, captcha_data, cookies = get_new_captcha(url)
         captcha_answer = get_captcha_user_input(captcha_image)
         # print_func("CAPTCHA input from user: {}".format(captcha_answer))
-        ok, downloadURL = post_captcha_answer(url, captcha_data, captcha_answer, cookies)
-        if ok:
-            # print_func('URL obtained: ' + downloadURL)
-            return downloadURL
-        print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
 
-    return False
+        response = post_captcha_answer(url, captcha_data, captcha_answer, cookies)
+
+        if "slowDownloadLink" in response:
+            return response["slowDownloadLink"]
+
+        if "/download-dialog/free/limit-exceeded" in str(response):
+            # {"redirectDialogContent": "/download-dialog/free/limit-exceeded?fileSlug=5USLDPenZ&repeated=0"}
+            print_func("Blocked by Uloz.to download limit. Retrying in 60 seconds.")
+            time.sleep(60)  # 1 minute pause is required between requests
+            continue
+
+        print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
 
 
 def get_new_captcha(url):
@@ -150,18 +156,12 @@ def post_captcha_answer(url, captcha_data, captcha_answer, cookies):
             cookies (RequestsCookieJar): Cookies from the CAPTCHA challenge page
 
         Returns:
-            bool: True on success, False otherwise
-            str: download link in case of success
+            dict: JSON response to the CAPTCHA solution
     """
 
     captcha_data["captcha_value"] = captcha_answer
-
-    r = requests.post(url, data=captcha_data, headers=XML_HEADERS, cookies=cookies)
-    answer = r.json()
-    if "downloadLink" in answer:
-        return True, answer["downloadLink"]
-    else:
-        return False, ""
+    response = requests.post(url, data=captcha_data, headers=XML_HEADERS, cookies=cookies)
+    return response.json()
 
 
 def get_captcha_user_input(img_url):
