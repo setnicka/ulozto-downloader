@@ -18,10 +18,18 @@ Také existuje [jiná velmi podobná Pythoní verze](https://github.com/yaqwsx/u
 * Umí navazovat přerušená stahování (pokud se zachová stejný počet částí)
 * Konzolový status panel
 
+## Instalace
+
+Nejjednodušší je využít verzi uveřejněnou na [PyPi](https://pypi.org/project/ulozto-downloader/):
+
+```shell
+pip3 install ulozto-downloader
+```
+
 ## Použití
 
 ```shell
-./ulozto_downloader.py --parts 15 'https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso'
+ulozto-downloader --parts 15 'https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso'
 ```
 
 ## Requirements
