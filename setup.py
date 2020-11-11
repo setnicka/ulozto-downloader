@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
   name='ulozto_downloader',
-  version='1.3',
+  version='1.4',
   license='MIT',
   description='Uloz.to quick multiple sessions downloader.',
   long_description=long_description,
@@ -16,14 +16,15 @@ setup(
   author='Jiří Setnička',
   author_email='setnicka@seznam.cz',
   url='https://github.com/setnicka/ulozto_downloader',
-  download_url='https://github.com/setnicka/ulozto_downloader/archive/1.3.tar.gz',
   install_requires=[
           'requests',
           'Pillow',
   ],
   python_requires='>=3.5',
+  packages=setuptools.find_packages(),
   classifiers=[
     'License :: OSI Approved :: MIT License',
     'Programming Language :: Python :: 3',
   ],
+  scripts=['ulozto-downloader']
 )
