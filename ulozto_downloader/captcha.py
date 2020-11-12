@@ -4,7 +4,7 @@ import requests
 import tkinter as tk
 from PIL import Image, ImageTk
 from io import BytesIO
-
+import numpy as np
 
 def tkinter_user_prompt(img_url):
     """Display captcha from given URL and ask user for input in GUI window.
@@ -46,3 +46,129 @@ def tkinter_user_prompt(img_url):
     value = entry.get()
     root.destroy()
     return value
+
+class AutoReadCaptcha:
+    def __init__(self, model_path, model_url, print_func=print):
+        import tflite_runtime.interpreter as tflite
+        from urllib.request import urlretrieve
+        import os
+
+        def reporthook(blocknum, block_size, total_size):
+            """
+            Credits to jfs from https://stackoverflow.com/questions/13881092/download-progressbar-for-python-3
+            """
+            readsofar = blocknum * block_size
+            if total_size > 0:
+                percent = readsofar * 1e2 / total_size
+                s = "\r%5.1f%% %*d / %d" % (
+                    percent, len(str(total_size)), readsofar, total_size)
+                print_func(s, end="")
+                if readsofar >= total_size:  # near the end
+                    print_func(flush=True)
+            else:  # total size is unknown
+                print_func("read %d" % (readsofar,), flush=True)
+
+        if not os.path.exists(model_path):
+            print_func(f"Downloading model from {model_url}")
+            # download into temp model in order to detect incomplete downloads
+            model_temp_path = f"{model_path}.tmp"
+            urlretrieve(model_url, model_temp_path, reporthook)
+            print_func(f"Downloading of the model finished")
+
+            # rename temp model
+            os.rename(model_temp_path, model_path)
+
+        # load model
+        self.interpreter = tflite.Interpreter(model_path=model_path)
+        self.print_func = print_func
+
+    def __call__(self, img_url):
+        interpreter = self.interpreter
+
+        u = requests.get(img_url)
+        raw_data = u.content
+
+        img = Image.open(BytesIO(raw_data))
+        img = np.asarray(img)
+
+        # normalize to [0...1]
+        img = (img / 255).astype(np.float32)
+
+        # convert to grayscale
+        r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+        input = 0.299 * r + 0.587 * g + 0.114 * b
+
+        # input has nowof  shape (70, 175)
+        # we modify dimensions to match model's input
+        input = np.expand_dims(input, 0)
+        input = np.expand_dims(input, -1)
+        # input is now of shape (batch_size, 70, 175, 1)
+        # output will have shape (batch_size, 4, 26)
+
+        interpreter.allocate_tensors()
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        interpreter.set_tensor(input_details[0]['index'], input)
+        interpreter.invoke()
+
+        # predict and get the output
+        output = interpreter.get_tensor(output_details[0]['index'])
+        # now get labels
+        labels_indices = np.argmax(output, axis=2)
+
+        available_chars = "abcdefghijklmnopqrstuvwxyz"
+
+        def decode(li):
+            result = []
+            for char in li:
+                result.append(available_chars[char])
+            return "".join(result)
+
+        decoded_label = [decode(x) for x in labels_indices][0]
+        return decoded_label
+
+def auto_read_captcha(img_url):
+    u = requests.get(img_url)
+    raw_data = u.content
+
+    img = Image.open(BytesIO(raw_data))
+
+    # load model
+    import tflite_runtime.interpreter as tflite
+    import numpy as np
+    global interpreter
+    if interpreter is None:
+        interpreter = tflite.Interpreter(model_path="model.tflite")
+
+    # convert to grayscale
+    r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+    input = 0.299 * r + 0.587 * g + 0.114 * b
+
+    # input has nowof  shape (70, 175)
+    # we modify dimensions to match model's input
+    input = np.expand_dims(input, 0)
+    input = np.expand_dims(input, -1)
+    # input is now of shape (batch_size, 70, 175, 1)
+    # output will have shape (batch_size, 4, 26)
+
+    interpreter.allocate_tensors()
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    interpreter.set_tensor(input_details[0]['index'], input)
+    interpreter.invoke()
+
+    # predict and get the output
+    output = interpreter.get_tensor(output_details[0]['index'])
+    # now get labels
+    labels_indices = np.argmax(output, axis=2)
+
+    available_chars = "abcdefghijklmnopqrstuvwxyz"
+
+    def decode(li):
+        result = []
+        for char in li:
+            result.append(available_chars[char])
+        return "".join(result)
+
+    decoded_label = [decode(x) for x in labels_indices][0]
+    return decoded_label

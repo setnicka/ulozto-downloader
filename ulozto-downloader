@@ -14,10 +14,21 @@ parser = argparse.ArgumentParser(
 parser.add_argument('url', metavar='URL', type=str, help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
 parser.add_argument('--parts', metavar='N', type=int, default=10, help='Number of parts that will be downloaded in parallel')
 parser.add_argument('--output', metavar='DIRECTORY', type=str, default="./", help='Target directory')
+parser.add_argument('--captcha', type=str, default="m", help='Specifies, whether the captchas are to be submitted manually ("m") or automatically ("a")')
 
 args = parser.parse_args()
 
-d = downloader.Downloader(captcha.tkinter_user_prompt)
+captcha_solve_fnc = None
+if args.captcha == "m":
+    captcha_solve_fnc = captcha.tkinter_user_prompt
+elif args.captcha == "a":
+    model_path = "model.tflite"
+    model_download_url = "https://github.com/JanPalasek/ulozto-captcha-breaker/releases/download/v2.2/model.tflite"
+    captcha_solve_fnc = captcha.AutoReadCaptcha(model_path, model_download_url)
+else:
+    raise ValueError(f"Invalid captcha parameter value {args.captcha}")
+
+d = downloader.Downloader(captcha_solve_fnc)
 
 
 # Register sigint handler
