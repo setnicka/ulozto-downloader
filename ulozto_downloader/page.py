@@ -25,6 +25,7 @@ class Page:
 
     filename: str
     slowDownloadURL: str
+    quickDownloadURL: str
     captchaURL: str
 
     def __init__(self, url):
@@ -71,11 +72,16 @@ class Page:
         download_found = False
 
         # Some files may be download without CAPTCHA, there is special URL on the parsed page:
-        # <a ... href="/slowDownload/E7jJsmR2ix73">...</a>
+        # a) <a ... href="/slowDownload/E7jJsmR2ix73">...</a>
         self.slowDownloadURL = parse_single(self.body, r'href="(/slowDownload/[^"]*)"')
         if self.slowDownloadURL:
             download_found = True
             self.slowDownloadURL = self.baseURL + self.slowDownloadURL
+        # b) <a ... href="/quickDownload/E7jJsmR2ix73">...</a>
+        self.quickDownloadURL = parse_single(self.body, r'href="(/quickDownload/[^"]*)"')
+        if self.quickDownloadURL:
+            download_found = True
+            self.quickDownloadURL = self.baseURL + self.quickDownloadURL
 
         # Other files are protected by CAPTCHA challenge
         # <a href="javascript:;" data-href="/download-dialog/free/default?fileSlug=apj0q49iETRR" class="c-button c-button__c-white js-free-download-button-dialog t-free-download-button">

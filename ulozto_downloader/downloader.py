@@ -125,7 +125,11 @@ class Downloader:
                 sys.exit(1)
 
         isCAPTCHA = False
-        if page.slowDownloadURL is not None:
+        if page.quickDownloadURL is not None:
+            print("You are VERY lucky, this is QUICK direct download without CAPTCHA, downloading as 1 quick part :)")
+            download_url = page.quickDownloadURL
+            parts = 1
+        elif page.slowDownloadURL is not None:
             print("You are lucky, this is slow direct download without CAPTCHA :)")
             download_url = page.slowDownloadURL
         else:
