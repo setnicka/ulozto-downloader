@@ -13,9 +13,8 @@ Také existuje [jiná velmi podobná Pythoní verze](https://github.com/yaqwsx/u
 ## Klíčové vlastnosti
 
 * Sám pozná downloady, kde Ulož.to umožňuje stahovat bez CAPTCHA kódů
-* V ostatních případech na začátku postupně vyptá od uživatele opsání CAPTCHA kódů
-  * Pokud by někdo chtěl natrénovat neuronku, tak se kód dá jednoduše upravit a volat externí řešič ;-)
 * Umí navazovat přerušená stahování (pokud se zachová stejný počet částí)
+* Dokáže přečíst sám captcha kódy díky [tomuto projektu](https://github.com/JanPalasek/ulozto-captcha-breaker)
 * Konzolový status panel
 
 ## Instalace
@@ -29,12 +28,20 @@ pip3 install ulozto-downloader
 ## Použití
 
 ```shell
-ulozto-downloader --parts 15 'https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso'
+ulozto-downloader --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
+```
+
+Pro volbu manuálního či automatického čtení captcha kódů slouží přepínač *captcha* s hodnotami "m" či "a" (manuální je default).
+Abychom nemuseli captcha kódy sami luštit, můžeme tedy zavolat například
+
+```shell
+ulozto-downloader --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso" --captcha "a"
 ```
 
 ## Requirements
 
 * Python 3
+* Pro automatické stahování vhodnou verzi [TensorflowLite Runtimu](https://www.tensorflow.org/lite/guide/python)
 * Nějaké knihovny pro Python 3:
   * Tkinter (balík `python3-tk` na Debianu)
   * Pillow s ImageTK (balík `python3-pil.imagetk` na Debianu)
