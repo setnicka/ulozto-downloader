@@ -4,7 +4,6 @@ import requests
 import tkinter as tk
 from PIL import Image, ImageTk
 from io import BytesIO
-import numpy as np
 
 def tkinter_user_prompt(img_url):
     """Display captcha from given URL and ask user for input in GUI window.
@@ -83,6 +82,8 @@ class AutoReadCaptcha:
         self.print_func = print_func
 
     def __call__(self, img_url):
+        import numpy as np
+
         interpreter = self.interpreter
 
         u = requests.get(img_url)
@@ -126,49 +127,3 @@ class AutoReadCaptcha:
 
         decoded_label = [decode(x) for x in labels_indices][0]
         return decoded_label
-
-def auto_read_captcha(img_url):
-    u = requests.get(img_url)
-    raw_data = u.content
-
-    img = Image.open(BytesIO(raw_data))
-
-    # load model
-    import tflite_runtime.interpreter as tflite
-    import numpy as np
-    global interpreter
-    if interpreter is None:
-        interpreter = tflite.Interpreter(model_path="model.tflite")
-
-    # convert to grayscale
-    r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
-    input = 0.299 * r + 0.587 * g + 0.114 * b
-
-    # input has nowof  shape (70, 175)
-    # we modify dimensions to match model's input
-    input = np.expand_dims(input, 0)
-    input = np.expand_dims(input, -1)
-    # input is now of shape (batch_size, 70, 175, 1)
-    # output will have shape (batch_size, 4, 26)
-
-    interpreter.allocate_tensors()
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    interpreter.set_tensor(input_details[0]['index'], input)
-    interpreter.invoke()
-
-    # predict and get the output
-    output = interpreter.get_tensor(output_details[0]['index'])
-    # now get labels
-    labels_indices = np.argmax(output, axis=2)
-
-    available_chars = "abcdefghijklmnopqrstuvwxyz"
-
-    def decode(li):
-        result = []
-        for char in li:
-            result.append(available_chars[char])
-        return "".join(result)
-
-    decoded_label = [decode(x) for x in labels_indices][0]
-    return decoded_label
