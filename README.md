@@ -26,13 +26,7 @@ pip3 install ulozto-downloader
 ```
 
 ## Použití
-
-```shell
-ulozto-downloader --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
-```
-
 Pro volbu manuálního či automatického čtení captcha kódů slouží přepínač *captcha* s hodnotami "m" či "a" (manuální je default).
-Abychom nemuseli captcha kódy sami luštit, můžeme tedy zavolat například
 
 ```shell
 ulozto-downloader --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso" --captcha "a"
@@ -41,7 +35,6 @@ ulozto-downloader --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-a
 ## Requirements
 
 * Python 3
-* Pro automatické stahování vhodnou verzi [TensorflowLite Runtimu](https://www.tensorflow.org/lite/guide/python) a numpy
 * Nějaké knihovny pro Python 3:
   * Tkinter (balík `python3-tk` na Debianu)
   * Pillow s ImageTK (balík `python3-pil.imagetk` na Debianu)
