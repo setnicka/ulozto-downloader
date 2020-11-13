@@ -11,64 +11,6 @@ from .page import Page
 CLI_STATUS_STARTLINE = 6
 
 
-def print_status(id, text):
-    """Print status line for specified worker to the console.
-
-        Arguments:
-            id (int): ID of the worker
-            text (str): Message to write
-    """
-
-    sys.stdout.write("\033[{};{}H".format(id + CLI_STATUS_STARTLINE, 0))
-    sys.stdout.write("\033[K")
-    sys.stdout.write("[Part {}]\t{}".format(id, text))
-    sys.stdout.flush()
-
-
-def download_part(part):
-    """Download given part of the download.
-
-        Arguments:
-            part (dict): Specification of the part to download
-    """
-
-    id = part['id']
-    print_status(id, "Starting download")
-
-    part['started'] = time.time()
-    part['now_downloaded'] = 0
-
-    # Note the stream=True parameter
-    r = requests.get(part['download_url'], stream=True, allow_redirects=True, headers={
-        "Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
-    })
-    with open(part['filename'], 'ab') as f:
-        for chunk in r.iter_content(chunk_size=1024):
-            if chunk:  # filter out keep-alive new chunks
-                f.write(chunk)
-                part['downloaded'] += len(chunk)
-                part['now_downloaded'] += len(chunk)
-                elapsed = time.time() - part['started']
-
-                # Print status line
-                speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0  # in bytes per second
-                remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0  # in seconds
-
-                print_status(id, "{}%\t{:.2f}/{:.2f}MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
-                    round(part['downloaded'] / part['size'] * 100, 1),
-                    round(part['downloaded'] / 1024**2, 2), round(part['size'] / 1024**2, 2),
-                    round(speed / 1024, 2),
-                    str(timedelta(seconds=round(elapsed))),
-                    str(timedelta(seconds=round(remaining))),
-                ))
-
-    part['elapsed'] = time.time() - part['started']
-    print_status(id, "Successfully downloaded {}MB in {}".format(
-        round(part['downloaded'] / 1024**2, 2),
-        str(timedelta(seconds=round(part['elapsed']))),
-    ))
-
-
 class Downloader:
     cli_initialized: bool
     terminating: bool
@@ -90,6 +32,71 @@ class Downloader:
             p.terminate()
         print('Download terminated.')
         return
+
+    def __print(self, text, x=0, y=0):
+        sys.stdout.write("\033[{};{}H".format(y, x))
+        sys.stdout.write("\033[K")
+        sys.stdout.write(text)
+        sys.stdout.flush()
+
+    def __print_part_status(self, id, text):
+        self.__print("[Part {}]\t{}".format(id, text), y=(id + CLI_STATUS_STARTLINE))
+
+    def __print_captcha_status(self, text):
+        self.__print("[CAPTCHA solve]\t{}".format(text), y=(self.parts + 2 + CLI_STATUS_STARTLINE))
+
+    def __captcha_breaker(self, page):
+        while True:
+            self.__print_captcha_status("Solving CAPTCHA...")
+            self.download_url_queue.put(
+                page.get_captcha_download_link(
+                    captcha_solve_func=self.captcha_solve_func,
+                    print_func=lambda msg: self.__print_captcha_status(msg)
+                )
+            )
+
+    def __download_part(self, part):
+        """Download given part of the download.
+
+            Arguments:
+                part (dict): Specification of the part to download
+        """
+
+        id = part['id']
+        self.__print_part_status(id, "Starting download")
+
+        part['started'] = time.time()
+        part['now_downloaded'] = 0
+
+        # Note the stream=True parameter
+        r = requests.get(part['download_url'], stream=True, allow_redirects=True, headers={
+            "Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
+        })
+        with open(part['filename'], 'ab') as f:
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:  # filter out keep-alive new chunks
+                    f.write(chunk)
+                    part['downloaded'] += len(chunk)
+                    part['now_downloaded'] += len(chunk)
+                    elapsed = time.time() - part['started']
+
+                    # Print status line
+                    speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0  # in bytes per second
+                    remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0  # in seconds
+
+                    self.__print_part_status(id, "{}%\t{:.2f}/{:.2f}MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
+                        round(part['downloaded'] / part['size'] * 100, 1),
+                        round(part['downloaded'] / 1024**2, 2), round(part['size'] / 1024**2, 2),
+                        round(speed / 1024, 2),
+                        str(timedelta(seconds=round(elapsed))),
+                        str(timedelta(seconds=round(remaining))),
+                    ))
+
+        part['elapsed'] = time.time() - part['started']
+        self.__print_part_status(id, "Successfully downloaded {}MB in {}".format(
+            round(part['downloaded'] / 1024**2, 2),
+            str(timedelta(seconds=round(part['elapsed']))),
+        ))
 
     def download(self, url, parts=10, target_dir=""):
         """Download file from Uloz.to using multiple parallel downloads.
@@ -164,9 +171,9 @@ class Downloader:
         ))
         for part in downloads:
             if isCAPTCHA:
-                print_status(part['id'], "Waiting for CAPTCHA...")
+                self.__print_part_status(part['id'], "Waiting for CAPTCHA...")
             else:
-                print_status(part['id'], "Waiting for download to start...")
+                self.__print_part_status(part['id'], "Waiting for download to start...")
 
         # 3. Start all downloads
         for part in downloads:
@@ -179,7 +186,7 @@ class Downloader:
             if os.path.isfile(part['filename']):
                 part['downloaded'] = os.path.getsize(part['filename'])
                 if part['downloaded'] == part['size']:
-                    print_status(id, "Already downloaded from previous run, skipping")
+                    self.__print_part_status(id, "Already downloaded from previous run, skipping")
                     continue
 
             if isCAPTCHA:
@@ -197,7 +204,7 @@ class Downloader:
                 part['download_url'] = download_url
 
             # Start download process in another process (parallel):
-            p = mp.Process(target=download_part, args=(part,))
+            p = mp.Process(target=self.__download_part, args=(part,))
             p.start()
             self.processes.append(p)
 
@@ -209,6 +216,7 @@ class Downloader:
                 success = False
 
         sys.stdout.write("\033[{};{}H".format(parts + CLI_STATUS_STARTLINE + 2, 0))
+        sys.stdout.write("\033[K")
         self.cli_initialized = False
         if not success:
             print("Failure of one or more downloads, exiting")
