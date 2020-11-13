@@ -120,8 +120,10 @@ class Page:
 
             if "/download-dialog/free/limit-exceeded" in str(response):
                 # {"redirectDialogContent": "/download-dialog/free/limit-exceeded?fileSlug=5USLDPenZ&repeated=0"}
-                print_func("Blocked by Uloz.to download limit. Retrying in 60 seconds.")
-                time.sleep(60)  # 1 minute pause is required between requests
+                # 1 minute pause is required between requests
+                for i in range(60, 1, -1):
+                    print_func("Blocked by Uloz.to download limit. Retrying in {} seconds.".format(i))
+                    time.sleep(1)
                 continue
 
             print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
