@@ -15,7 +15,9 @@ class Downloader:
     cli_initialized: bool
     terminating: bool
     processes: slice
+    captcha_process: mp.Process
     captcha_solve_func: FunctionType
+    download_url_queue: mp.Queue
     parts: int
 
     def __init__(self, captcha_solve_func):
@@ -28,6 +30,8 @@ class Downloader:
             sys.stdout.write("\033[{};{}H".format(self.parts + CLI_STATUS_STARTLINE + 2, 0))
             self.cli_initialized = False
         print('Terminating download. Please wait for stopping all processes.')
+        if self.captcha_process is not None:
+            self.captcha_process.terminate()
         for p in self.processes:
             p.terminate()
         print('Download terminated.')
@@ -97,6 +101,8 @@ class Downloader:
             round(part['downloaded'] / 1024**2, 2),
             str(timedelta(seconds=round(part['elapsed']))),
         ))
+        # Free this (still valid) download URL for next use
+        self.download_url_queue.put(part['download_url'])
 
     def download(self, url, parts=10, target_dir=""):
         """Download file from Uloz.to using multiple parallel downloads.
@@ -110,6 +116,7 @@ class Downloader:
         self.url = url
         self.parts = parts
         self.processes = []
+        self.captcha_process = None
         self.target_dir = target_dir
         self.terminating = False
 
@@ -175,6 +182,16 @@ class Downloader:
             else:
                 self.__print_part_status(part['id'], "Waiting for download to start...")
 
+        # Prepare queue for recycling download URLs
+        self.download_url_queue = mp.Queue(maxsize=0)
+        if isCAPTCHA:
+            # Reuse already solved CAPTCHA
+            self.download_url_queue.put(download_url)
+
+            # Start CAPTCHA breaker in separate process
+            self.captcha_process = mp.Process(target=self.__captcha_breaker, args=(page,))
+            self.captcha_process.start()
+
         # 3. Start all downloads
         for part in downloads:
             if self.terminating:
@@ -190,16 +207,7 @@ class Downloader:
                     continue
 
             if isCAPTCHA:
-                # Reuse already solved CAPTCHA challenge for the first not downloaded part
-                if download_url is not None:
-                    part['download_url'] = download_url
-                    download_url = None
-                else:
-                    print_status(id, "Solving CAPTCHA...")
-                    part['download_url'] = page.get_captcha_download_link(
-                        captcha_solve_func=self.captcha_solve_func,
-                        print_func=lambda msg: print_status(id, msg)
-                    )
+                part['download_url'] = self.download_url_queue.get()
             else:
                 part['download_url'] = download_url
 
@@ -207,6 +215,10 @@ class Downloader:
             p = mp.Process(target=self.__download_part, args=(part,))
             p.start()
             self.processes.append(p)
+
+        if isCAPTCHA:
+            # no need for another CAPTCHAs
+            self.captcha_process.terminate()
 
         # 4. Wait for all downloads to finish
         success = True
