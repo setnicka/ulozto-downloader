@@ -2,3 +2,5 @@ __pycache__/
 *.py[cod]
 dist/
 build/
+model.tflite
+model.tflite.tmp
