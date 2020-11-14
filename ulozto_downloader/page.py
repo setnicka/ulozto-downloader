@@ -108,7 +108,7 @@ class Page:
         print_func("CAPTCHA image challenge...")
         while True:
             captcha_image, captcha_data, cookies = self.get_new_captcha()
-            captcha_answer = captcha_solve_func(captcha_image)
+            captcha_answer = captcha_solve_func(captcha_image, print_func=print_func)
             # print_func("CAPTCHA input from user: {}".format(captcha_answer))
 
             captcha_data["captcha_value"] = captcha_answer

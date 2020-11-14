@@ -5,7 +5,7 @@ import tkinter as tk
 from PIL import Image, ImageTk
 from io import BytesIO
 
-def tkinter_user_prompt(img_url):
+def tkinter_user_prompt(img_url, print_func):
     """Display captcha from given URL and ask user for input in GUI window.
 
         Arguments:
@@ -48,7 +48,6 @@ def tkinter_user_prompt(img_url):
 
 class AutoReadCaptcha:
     def __init__(self, model_path, model_url, print_func=print):
-        import tflite_runtime.interpreter as tflite
         from urllib.request import urlretrieve
         import os
 
@@ -72,19 +71,23 @@ class AutoReadCaptcha:
             # download into temp model in order to detect incomplete downloads
             model_temp_path = f"{model_path}.tmp"
             urlretrieve(model_url, model_temp_path, reporthook)
-            print_func(f"Downloading of the model finished")
+            print_func("Downloading of the model finished")
 
             # rename temp model
             os.rename(model_temp_path, model_path)
 
-        # load model
-        self.interpreter = tflite.Interpreter(model_path=model_path)
+        # due to multiprocessing the model model have to be loaded in each
+        # process independently
+        self.model_content = open(model_path, "rb").read()
         self.print_func = print_func
 
-    def __call__(self, img_url):
+    def __call__(self, img_url, print_func):
+        import tflite_runtime.interpreter as tflite
         import numpy as np
 
-        interpreter = self.interpreter
+        print_func("Auto solving CAPTCHA")
+
+        interpreter = tflite.Interpreter(model_content=self.model_content)
 
         u = requests.get(img_url)
         raw_data = u.content
@@ -126,4 +129,5 @@ class AutoReadCaptcha:
             return "".join(result)
 
         decoded_label = [decode(x) for x in labels_indices][0]
+        print_func(f"CAPTCHA auto solved as '{decoded_label}'")
         return decoded_label
