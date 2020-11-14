@@ -2,3 +2,4 @@
 
 * Jiří Setnička
 * Jan Musílek
+* Koticka
