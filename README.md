@@ -26,10 +26,10 @@ pip3 install ulozto-downloader
 ```
 
 ## Použití
-Pro volbu manuálního či automatického čtení captcha kódů slouží přepínač *captcha* s hodnotami "m" či "a" (manuální je default).
+Pro volbu automatického čtení captcha kódů slouží přepínač *auto_captcha*.
 
 ```shell
-ulozto-downloader --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso" --captcha "a"
+ulozto-downloader --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso" --auto_captcha
 ```
 
 ## Requirements
