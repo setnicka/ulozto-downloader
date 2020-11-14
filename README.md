@@ -31,18 +31,31 @@ s webovým rozhraním.
 Nejjednodušší je využít verzi uveřejněnou na [PyPi](https://pypi.org/project/ulozto-downloader/):
 
 ```shell
-pip3 install --upgrade ulozto-downloader
+$ pip3 install --upgrade ulozto-downloader
 ```
 
-Toto zároveň instaluje i všechny potřebné dependence (včetně TensorFlow Lite
-pro louskání CAPTCHA kódů).
+Toto instaluje všechny dependence **vyjma TensorFlow Lite** pro automatické
+louskání CAPTCHA kódů (protože repozitář PyPI zakazuje přímé URL dependence).
+
+### Instalace TensorFlow Lite
+
+Na stránce [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python) si
+v tabulce vyberte správnou verzi podle vašeho systému a verze Pythonu (zjistíte
+zavoláním `python3 -V`), zkopírujte URL a instalujte pomocí:
+
+```shell
+$ pip3 install <URL>
+# Například tedy pro Python 3.8 na x86-64 Linuxu:
+$ pip3 install https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp38-cp38-linux_x86_64.whl
+```
 
 ## Použití
+
 Pro volbu automatického čtení CAPTCHA kódů slouží přepínač `--auto-captcha`,
 pro volbu počtu částí slouží přepínač `--parts N`.
 
 ```shell
-ulozto-downloader --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
+$ ulozto-downloader --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
 ```
 
 Při využití automatického louskání doporučuji využít velký počet částí, klidně
