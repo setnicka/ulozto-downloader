@@ -55,7 +55,7 @@ class Downloader:
             self.download_url_queue.put(
                 page.get_captcha_download_link(
                     captcha_solve_func=self.captcha_solve_func,
-                    print_func=lambda msg: self.__print_captcha_status(msg)
+                    print_func=self.__print_captcha_status
                 )
             )
 
@@ -147,9 +147,12 @@ class Downloader:
             print("You are lucky, this is slow direct download without CAPTCHA :)")
             download_url = page.slowDownloadURL
         else:
-            print("CAPTCHA protected download - CAPTCHA challenges will be displayed")
+            print("CAPTCHA protected download - CAPTCHA challenges will be displayed\n")
             isCAPTCHA = True
-            download_url = page.get_captcha_download_link(captcha_solve_func=self.captcha_solve_func)
+            download_url = page.get_captcha_download_link(
+                captcha_solve_func=self.captcha_solve_func,
+                print_func=lambda text: sys.stdout.write("[CAPTCHA solve]\t" + text + "\033[K\r")
+            )
 
         head = requests.head(download_url, allow_redirects=True)
         total_size = int(head.headers['Content-Length'])
@@ -219,6 +222,7 @@ class Downloader:
         if isCAPTCHA:
             # no need for another CAPTCHAs
             self.captcha_process.terminate()
+            self.__print_captcha_status("All downloads started, no need to solve another CAPTCHAs")
 
         # 4. Wait for all downloads to finish
         success = True
