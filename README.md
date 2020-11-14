@@ -13,9 +13,8 @@ Také existuje [jiná velmi podobná Pythoní verze](https://github.com/yaqwsx/u
 ## Klíčové vlastnosti
 
 * Sám pozná downloady, kde Ulož.to umožňuje stahovat bez CAPTCHA kódů
-* V ostatních případech na začátku postupně vyptá od uživatele opsání CAPTCHA kódů
-  * Pokud by někdo chtěl natrénovat neuronku, tak se kód dá jednoduše upravit a volat externí řešič ;-)
 * Umí navazovat přerušená stahování (pokud se zachová stejný počet částí)
+* Dokáže přečíst sám captcha kódy díky [tomuto projektu](https://github.com/JanPalasek/ulozto-captcha-breaker)
 * Konzolový status panel
 
 ## Instalace
@@ -27,9 +26,10 @@ pip3 install ulozto-downloader
 ```
 
 ## Použití
+Pro volbu automatického čtení captcha kódů slouží přepínač *auto_captcha*.
 
 ```shell
-ulozto-downloader --parts 15 'https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso'
+ulozto-downloader --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso" --auto_captcha
 ```
 
 ## Requirements
