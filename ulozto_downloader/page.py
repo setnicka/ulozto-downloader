@@ -121,7 +121,7 @@ class Page:
             if "/download-dialog/free/limit-exceeded" in str(response):
                 # {"redirectDialogContent": "/download-dialog/free/limit-exceeded?fileSlug=5USLDPenZ&repeated=0"}
                 # 1 minute pause is required between requests
-                for i in range(60, 1, -1):
+                for i in range(60, 0, -1):
                     print_func("Blocked by Uloz.to download limit. Retrying in {} seconds.".format(i))
                     time.sleep(1)
                 continue
