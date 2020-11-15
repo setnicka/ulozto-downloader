@@ -4,3 +4,5 @@ dist/
 build/
 model.tflite
 model.tflite.tmp
+.idea/
+venv/
