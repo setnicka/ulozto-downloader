@@ -3,9 +3,9 @@ import time
 from urllib.parse import urlparse
 import requests
 
-from requests.sessions import RequestsCookieJar
+from .constants import XML_HEADERS
 
-XML_HEADERS = {"X-Requested-With": "XMLHttpRequest"}
+from requests.sessions import RequestsCookieJar
 
 
 def parse_single(text, regex):
