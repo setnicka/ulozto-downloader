@@ -58,6 +58,8 @@ pro volbu počtu částí slouží přepínač `--parts N`.
 $ ulozto-downloader --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
 ```
 
+![Ukázka stahování](example-screenshot.png)
+
 Při využití automatického louskání doporučuji využít velký počet částí, klidně
 50 (spustíte `ulozto-downloader` a necháte ho pracovat, on si jednou za minutu
 louskne další dva stahovací linky a postupně navyšuje počet najednou stahovaných
