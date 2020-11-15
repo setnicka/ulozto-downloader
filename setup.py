@@ -19,6 +19,7 @@ setup(
   install_requires=[
             'requests',
             'Pillow',
+            'ansicolors',
             'numpy',
             # Currently it is forbidden to upload packages to PyPI which depends on URL requirements... :(
             # 'tflite_runtime @ https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp36-cp36m-linux_x86_64.whl ; python_version == "3.6" and platform_system == "Linux" and platform_machine == "x86_64"',
