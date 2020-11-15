@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
   name='ulozto-downloader',
-  version='1.5',
+  version='1.5.1',
   license='MIT',
   description='Uloz.to quick multiple sessions downloader.',
   long_description=long_description,
