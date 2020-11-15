@@ -78,6 +78,11 @@ class Downloader:
         r = requests.get(part['download_url'], stream=True, allow_redirects=True, headers={
             "Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
         })
+
+        if r.status_code != 206 and r.status_code != 200:
+            self.__print_part_status(id, colors.red(f"Status code {r.status_code} returned"))
+            raise RuntimeError(f"Download of part {id} returned status code {r.status_code}")
+
         with open(part['filename'], 'ab') as f:
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:  # filter out keep-alive new chunks
@@ -242,6 +247,23 @@ class Downloader:
             p.join()
             if p.exitcode != 0:
                 success = False
+
+        # Check all downloads
+        checkError = False
+        for part in downloads:
+            if not os.path.isfile(part['filename']):
+                self.__print_part_status(part['id'], colors.red(
+                    f"ERROR: Part '{part['filename']}' missing on disk"
+                ))
+                checkError = True
+                continue
+            size = os.path.getsize(part['filename'])
+            if size != part['size']:
+                self.__print_part_status(part['id'], colors.red(
+                    f"ERROR: Part '{part['filename']}' has wrong size {size} bytes (instead of {part['size']} bytes)"
+                ))
+                os.remove(part['filename'])
+                checkError = True
 
         sys.stdout.write("\033[{};{}H".format(parts + CLI_STATUS_STARTLINE + 2, 0))
         sys.stdout.write("\033[K")
