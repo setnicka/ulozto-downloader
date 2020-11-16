@@ -178,7 +178,7 @@ class Downloader:
         sys.stdout.write("\033[?25l")  # hide cursor
         self.cli_initialized = True
         print(colors.blue("File:\t\t") + colors.bold(page.filename))
-        print(colors.blue("URL:\t\t") + url)
+        print(colors.blue("URL:\t\t") + page.url)
         print(colors.blue("Download type:\t") + download_type)
         print(colors.blue("Total size:\t") + colors.bold("{}MB".format(round(total_size / 1024**2, 2))))
         print(colors.blue("Parts:\t\t") + "{} x {}MB".format(parts, round(part_size / 1024**2, 2)))
