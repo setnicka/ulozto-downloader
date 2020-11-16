@@ -45,7 +45,16 @@ class Page:
         if self.slug is None:
             raise RuntimeError("Cannot parse file slug from Uloz.to URL")
 
-        r = requests.get(url)
+        cookies = None
+        # special case for Pornfile.cz run by Uloz.to - confirmation is needed
+        if parsed_url.hostname == "pornfile.cz":
+            r = requests.post("https://pornfile.cz/porn-disclaimer/", data={
+                "agree": "Souhlasím",
+                "_do": "pornDisclaimer-submit",
+            })
+            cookies = r.cookies
+
+        r = requests.get(url, cookies=cookies)
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
         if r.status_code == 451:
@@ -54,7 +63,6 @@ class Page:
             raise RuntimeError("Uloz.to returned status code", r.status_code)
 
         self.body = r.text
-        self.cookies = r.cookies
 
     def parse(self):
         """Try to parse all information from the Uloz.to page (filename, download links, ...)
@@ -140,7 +148,16 @@ class Page:
                 RequestsCookieJar: Obtained cookies from the page
         """
 
-        r = requests.get(self.captchaURL)
+        cookies = None
+        # special case for Pornfile.cz run by Uloz.to - confirmation is needed
+        if urlparse(self.url).hostname == "pornfile.cz":
+            r = requests.post("https://pornfile.cz/porn-disclaimer/", data={
+                "agree": "Souhlasím",
+                "_do": "pornDisclaimer-submit",
+            })
+            cookies = r.cookies
+
+        r = requests.get(self.captchaURL, cookies=cookies)
 
         # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
         captcha_image = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
