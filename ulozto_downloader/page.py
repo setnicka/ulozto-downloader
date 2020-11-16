@@ -40,10 +40,6 @@ class Page:
 
         self.url = url
         parsed_url = urlparse(url)
-        # Get file slug from URL
-        self.slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
-        if self.slug is None:
-            raise RuntimeError("Cannot parse file slug from Uloz.to URL")
 
         cookies = None
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
@@ -54,13 +50,25 @@ class Page:
             })
             cookies = r.cookies
 
-        r = requests.get(url, cookies=cookies)
+        # If file is file-tracking link we need to get normal file link from it
+        if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
+            r = requests.get(url, allow_redirects=False, cookies=cookies)
+            if 'Location' in r.headers:
+                self.url = r.headers['Location']
+                parsed_url = urlparse(self.url)
+
+        r = requests.get(self.url, cookies=cookies)
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
         if r.status_code == 451:
             raise RuntimeError("File was deleted from Uloz.to due to legal reasons (status code 451)")
         elif r.status_code != 200:
-            raise RuntimeError("Uloz.to returned status code", r.status_code)
+            raise RuntimeError(f"Uloz.to returned status code {r.status_code}, file does not exist")
+
+        # Get file slug from URL
+        self.slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
+        if self.slug is None:
+            raise RuntimeError("Cannot parse file slug from Uloz.to URL")
 
         self.body = r.text
 
