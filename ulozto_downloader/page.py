@@ -3,7 +3,7 @@ import time
 from urllib.parse import urlparse
 import requests
 
-from .constants import XML_HEADERS
+from .const import XML_HEADERS
 
 from requests.sessions import RequestsCookieJar
 
