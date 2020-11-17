@@ -1,9 +1,7 @@
 import requests
-
-# Imports for GUI:
-import tkinter as tk
-from PIL import Image, ImageTk
+from PIL import Image
 from io import BytesIO
+
 
 def tkinter_user_prompt(img_url, print_func):
     """Display captcha from given URL and ask user for input in GUI window.
@@ -14,6 +12,8 @@ def tkinter_user_prompt(img_url, print_func):
         Returns:
             str: User answer to the CAPTCHA
     """
+    import tkinter as tk
+    from PIL import ImageTk
 
     root = tk.Tk()
     root.focus_force()
@@ -45,6 +45,7 @@ def tkinter_user_prompt(img_url, print_func):
     value = entry.get()
     root.destroy()
     return value
+
 
 class AutoReadCaptcha:
     def __init__(self, model_path, model_url, print_func=print):
