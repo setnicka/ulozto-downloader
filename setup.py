@@ -3,12 +3,14 @@
 from distutils.core import setup
 import setuptools  # noqa
 
+from ulozto_downloader import __version__
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
   name='ulozto-downloader',
-  version='1.6',
+  version=__version__,
   license='MIT',
   description='Uloz.to quick multiple sessions downloader.',
   long_description=long_description,
