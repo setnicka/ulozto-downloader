@@ -22,6 +22,7 @@ class Page:
     cookies: RequestsCookieJar
     baseURL: str
     slug: str
+    pagename: str
 
     filename: str
     slowDownloadURL: str
@@ -40,6 +41,7 @@ class Page:
 
         self.url = url
         parsed_url = urlparse(url)
+        self.pagename = parsed_url.hostname.capitalize()
 
         cookies = None
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
@@ -61,19 +63,19 @@ class Page:
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
         if r.status_code == 451:
-            raise RuntimeError("File was deleted from Uloz.to due to legal reasons (status code 451)")
+            raise RuntimeError(f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
         elif r.status_code != 200:
-            raise RuntimeError(f"Uloz.to returned status code {r.status_code}, file does not exist")
+            raise RuntimeError(f"{self.pagename} returned status code {r.status_code}, file does not exist")
 
         # Get file slug from URL
         self.slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
         if self.slug is None:
-            raise RuntimeError("Cannot parse file slug from Uloz.to URL")
+            raise RuntimeError(f"Cannot parse file slug from {self.pagename} URL")
 
         self.body = r.text
 
     def parse(self):
-        """Try to parse all information from the Uloz.to page (filename, download links, ...)
+        """Try to parse all information from the page (filename, download links, ...)
 
         Raises:
             RuntimeError: When mandatory fields cannot be parsed.
@@ -108,7 +110,8 @@ class Page:
 
         # Check if slowDirectDownload or form data for CAPTCHA was parsed
         if not download_found:
-            raise RuntimeError("Cannot parse Uloz.to page to get download information, no direct download URL and no CAPTCHA challenge URL found")
+            raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
+                               + " no direct download URL and no CAPTCHA challenge URL found")
 
     def get_captcha_download_link(self, captcha_solve_func, print_func=print):
         """Get download link by solving CAPTCHA, calls CAPTCHA related functions.
@@ -138,7 +141,7 @@ class Page:
                 # {"redirectDialogContent": "/download-dialog/free/limit-exceeded?fileSlug=5USLDPenZ&repeated=0"}
                 # 1 minute pause is required between requests
                 for i in range(60, 0, -1):
-                    print_func("Blocked by Uloz.to download limit. Retrying in {} seconds.".format(i))
+                    print_func(f"Blocked by {self.pagename} download limit. Retrying in {i} seconds.")
                     time.sleep(1)
                 continue
 
