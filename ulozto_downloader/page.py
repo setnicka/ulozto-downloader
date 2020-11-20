@@ -127,6 +127,11 @@ class Page:
         print_func("CAPTCHA image challenge...")
         while True:
             captcha_image, captcha_data, cookies = self.get_new_captcha()
+            if captcha_image == "limit-exceeded":
+                for i in range(60, 0, -1):
+                    print_func(f"Blocked by {self.pagename} download limit (before getting CAPTCHA). Retrying in {i} seconds.")
+                    time.sleep(1)
+                continue
             captcha_answer = captcha_solve_func(captcha_image, print_func=print_func)
             # print_func("CAPTCHA input from user: {}".format(captcha_answer))
 
@@ -169,6 +174,9 @@ class Page:
             cookies = r.cookies
 
         r = requests.get(self.captchaURL, cookies=cookies)
+
+        if "/download-dialog/free/limit-exceeded" in str(r.text):
+            return "limit-exceeded", None, None
 
         # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
         captcha_image = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
