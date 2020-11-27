@@ -30,6 +30,7 @@ class Downloader:
             sys.stdout.write("\033[{};{}H".format(self.parts + const.CLI_STATUS_STARTLINE + 2, 0))
             sys.stdout.write("\033[?25h")  # show cursor
             self.cli_initialized = False
+        print()
         print('Terminating download. Please wait for stopping all processes.')
         if self.captcha_process is not None:
             self.captcha_process.terminate()
@@ -38,15 +39,17 @@ class Downloader:
         print('Download terminated.')
         return
 
+    def _captcha_print_func_wrapper(self, text):
+        if not self.cli_initialized:
+            sys.stdout.write(colors.blue("[CAPTCHA solve]\t") + text + "\033[K\r")
+        else:
+            utils.print_captcha_status(text, self.parts)
+
     def _captcha_breaker(self, page, parts):
-        while True:
+        utils.print_captcha_status("Solving CAPTCHA...", parts)
+        for url in self.captcha_download_links_generator:
             utils.print_captcha_status("Solving CAPTCHA...", parts)
-            self.download_url_queue.put(
-                page.get_captcha_download_link(
-                    captcha_solve_func=self.captcha_solve_func,
-                    print_func=lambda text: utils.print_captcha_status(text, parts)
-                )
-            )
+            self.download_url_queue.put(url)
 
     @staticmethod
     def _download_part(part, download_url_queue):
@@ -67,9 +70,14 @@ class Downloader:
             "Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
         })
 
+        if r.status_code == 429:
+            utils.print_part_status(id, colors.yellow("Status code 429 Too Many Requests returned... will try again in few seconds"))
+            time.sleep(5)
+            return Downloader._download_part(part, download_url_queue)
+
         if r.status_code != 206 and r.status_code != 200:
             utils.print_part_status(id, colors.red(f"Status code {r.status_code} returned"))
-            raise RuntimeError(f"Download of part {id} returned status code {r.status_code}")
+            os.exit(1)
 
         with open(part['filename'], 'ab') as f:
             for chunk in r.iter_content(chunk_size=1024):
@@ -153,10 +161,11 @@ class Downloader:
             print("CAPTCHA protected download - CAPTCHA challenges will be displayed\n")
             download_type = "CAPTCHA protected download"
             isCAPTCHA = True
-            download_url = page.get_captcha_download_link(
+            self.captcha_download_links_generator = page.captcha_download_links_generator(
                 captcha_solve_func=self.captcha_solve_func,
-                print_func=lambda text: sys.stdout.write(colors.blue("[CAPTCHA solve]\t") + text + "\033[K\r")
+                print_func=self._captcha_print_func_wrapper
             )
+            download_url = next(self.captcha_download_links_generator)
 
         head = requests.head(download_url, allow_redirects=True)
         total_size = int(head.headers['Content-Length'])

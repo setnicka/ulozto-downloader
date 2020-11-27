@@ -1,11 +1,17 @@
 import re
-import time
 from urllib.parse import urlparse
 import requests
+import logging
+import ssl
 
 from .const import XML_HEADERS
 
 from requests.sessions import RequestsCookieJar
+from torpy.http.requests import tor_requests_session
+
+
+requests_logger = logging.getLogger('torpy')
+requests_logger.setLevel(logging.ERROR)  # disable warnings and below from torpy
 
 
 def parse_single(text, regex):
@@ -113,8 +119,10 @@ class Page:
             raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
                                + " no direct download URL and no CAPTCHA challenge URL found")
 
-    def get_captcha_download_link(self, captcha_solve_func, print_func=print):
-        """Get download link by solving CAPTCHA, calls CAPTCHA related functions.
+    def captcha_download_links_generator(self, captcha_solve_func, print_func=print):
+        """
+            Generator for CAPTCHA download links using Tor sessions.
+            Get download link by solving CAPTCHA, calls CAPTCHA related functions..
 
             Arguments:
                 captcha_solve_func (func): Function which gets CAPTCHA challenge URL and returns CAPTCHA answer
@@ -124,39 +132,47 @@ class Page:
                 str: URL for downloading the file
         """
 
-        print_func("CAPTCHA image challenge...")
         while True:
-            captcha_image, captcha_data, cookies = self.get_new_captcha()
-            if captcha_image == "limit-exceeded":
-                for i in range(60, 0, -1):
-                    print_func(f"Blocked by {self.pagename} download limit (before getting CAPTCHA). Retrying in {i} seconds.")
-                    time.sleep(1)
-                continue
-            captcha_answer = captcha_solve_func(captcha_image, print_func=print_func)
-            # print_func("CAPTCHA input from user: {}".format(captcha_answer))
+            print_func("CAPTCHA image challenge - opening new Tor circuit (may take some time)...")
+            try:
+                with tor_requests_session(hops_count=2, retries=0) as s:
+                    while True:
+                        captcha_image, captcha_data, cookies = self.get_new_captcha(s)
+                        if captcha_image == "limit-exceeded":
+                            print_func(f"Blocked by {self.pagename} download limit (before getting CAPTCHA). Changing tor circuit.")
+                            break
 
-            captcha_data["captcha_value"] = captcha_answer
-            response = requests.post(self.captchaURL, data=captcha_data, headers=XML_HEADERS, cookies=cookies)
-            response = response.json()
+                        captcha_answer = captcha_solve_func(captcha_image, print_func=print_func)
+                        # print_func("CAPTCHA input from user: {}".format(captcha_answer))
+                        captcha_data["captcha_value"] = captcha_answer
+                        response = s.post(self.captchaURL, data=captcha_data, headers=XML_HEADERS, cookies=cookies)
+                        response = response.json()
 
-            if "slowDownloadLink" in response:
-                return response["slowDownloadLink"]
+                        if "slowDownloadLink" in response:
+                            yield response["slowDownloadLink"]
+                            break  # from each Tor connection use only one download link to avoid 429 Too Many Connections
 
-            if "/download-dialog/free/limit-exceeded" in str(response):
-                # {"redirectDialogContent": "/download-dialog/free/limit-exceeded?fileSlug=5USLDPenZ&repeated=0"}
-                # 1 minute pause is required between requests
-                for i in range(60, 0, -1):
-                    print_func(f"Blocked by {self.pagename} download limit. Retrying in {i} seconds.")
-                    time.sleep(1)
-                continue
+                        if "/download-dialog/free/limit-exceeded" in str(response):
+                            print_func(f"Blocked by {self.pagename} download limit. Changing tor circuit.")
+                            break
 
-            print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
+                        print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
+            except requests.exceptions.ConnectionError:
+                print_func("Connection error, trying new Tor circuit")
+            except requests.exceptions.ChunkedEncodingError:
+                print_func("Error while communicating over Tor, trying new Tor circuit")
+            except requests.exceptions.ReadTimeout:
+                print_func("ReadTimeout error, maybe not working Tor circuit, trying new Tor circuit")
+            except ssl.SSLError:
+                # Error raised on exit, just ignore it
+                return
 
-    def get_new_captcha(self):
+    def get_new_captcha(self, s):
         """Get CAPTCHA url and form parameters from given page.
 
             Arguments:
                 url (str): URL of the CAPTCHA challenge form
+                s (requests.sessions.Session): Session used for connection to the Uloz.to
 
             Returns:
                 str: URL of the CAPTCHA image
@@ -167,13 +183,13 @@ class Page:
         cookies = None
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
         if urlparse(self.url).hostname == "pornfile.cz":
-            r = requests.post("https://pornfile.cz/porn-disclaimer/", data={
+            r = s.post("https://pornfile.cz/porn-disclaimer/", data={
                 "agree": "Souhlasím",
                 "_do": "pornDisclaimer-submit",
             })
             cookies = r.cookies
 
-        r = requests.get(self.captchaURL, cookies=cookies)
+        r = s.get(self.captchaURL, cookies=cookies)
 
         if "/download-dialog/free/limit-exceeded" in str(r.text):
             return "limit-exceeded", None, None
