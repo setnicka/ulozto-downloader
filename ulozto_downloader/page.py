@@ -9,9 +9,8 @@ from .const import XML_HEADERS
 from requests.sessions import RequestsCookieJar
 from torpy.http.requests import tor_requests_session
 
-
-requests_logger = logging.getLogger('torpy')
-requests_logger.setLevel(logging.ERROR)  # disable warnings and below from torpy
+# disable warnings and below from torpy
+logging.getLogger('torpy').setLevel(logging.ERROR)
 
 
 def parse_single(text, regex):
@@ -133,19 +132,44 @@ class Page:
         """
 
         while True:
-            print_func("CAPTCHA image challenge - opening new Tor circuit (may take some time)...")
+            print_func("Opening new Tor circuit (may take some time)...")
             try:
                 with tor_requests_session(hops_count=2, retries=0) as s:
+                    print_func("Tor connection established, solving CAPTCHA...")
+
+                    if urlparse(self.url).hostname == "pornfile.cz":
+                        r = s.post("https://pornfile.cz/porn-disclaimer/", data={
+                            "agree": "Souhlasím",
+                            "_do": "pornDisclaimer-submit",
+                        })
+
                     while True:
-                        captcha_image, captcha_data, cookies = self.get_new_captcha(s)
-                        if captcha_image == "limit-exceeded":
-                            print_func(f"Blocked by {self.pagename} download limit (before getting CAPTCHA). Changing tor circuit.")
+                        r = s.get(self.captchaURL, allow_redirects=False)
+
+                        if r.status_code == 302:
+                            # we got download URL without solving CAPTCHA, be happy
+                            yield r.headers["location"]
+                            break  # from each Tor connection use only one download link to avoid 429 Too Many Connections
+
+                        if "/download-dialog/free/limit-exceeded" in str(r.text):
+                            print_func(f"Blocked by {self.pagename} download limit (before getting CAPTCHA). Changing Tor circuit.")
                             break
 
-                        captcha_answer = captcha_solve_func(captcha_image, print_func=print_func)
+                        # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
+                        captcha_image_url = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
+                        if captcha_image_url is None:
+                            print_func("ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.")
+                            break
+
+                        captcha_data = {}
+                        for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
+                            captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
+
+                        print_func("Image URL obtained, trying to solve")
+                        captcha_answer = captcha_solve_func("https:" + captcha_image_url, print_func=print_func)
                         # print_func("CAPTCHA input from user: {}".format(captcha_answer))
                         captcha_data["captcha_value"] = captcha_answer
-                        response = s.post(self.captchaURL, data=captcha_data, headers=XML_HEADERS, cookies=cookies)
+                        response = s.post(self.captchaURL, data=captcha_data, headers=XML_HEADERS)
                         response = response.json()
 
                         if "slowDownloadLink" in response:
@@ -153,7 +177,7 @@ class Page:
                             break  # from each Tor connection use only one download link to avoid 429 Too Many Connections
 
                         if "/download-dialog/free/limit-exceeded" in str(response):
-                            print_func(f"Blocked by {self.pagename} download limit. Changing tor circuit.")
+                            print_func(f"Blocked by {self.pagename} download limit. Changing Tor circuit.")
                             break
 
                         print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
@@ -166,41 +190,3 @@ class Page:
             except ssl.SSLError:
                 # Error raised on exit, just ignore it
                 return
-
-    def get_new_captcha(self, s):
-        """Get CAPTCHA url and form parameters from given page.
-
-            Arguments:
-                url (str): URL of the CAPTCHA challenge form
-                s (requests.sessions.Session): Session used for connection to the Uloz.to
-
-            Returns:
-                str: URL of the CAPTCHA image
-                dict: Parsed JSON with parameters of the CAPTCHA
-                RequestsCookieJar: Obtained cookies from the page
-        """
-
-        cookies = None
-        # special case for Pornfile.cz run by Uloz.to - confirmation is needed
-        if urlparse(self.url).hostname == "pornfile.cz":
-            r = s.post("https://pornfile.cz/porn-disclaimer/", data={
-                "agree": "Souhlasím",
-                "_do": "pornDisclaimer-submit",
-            })
-            cookies = r.cookies
-
-        r = s.get(self.captchaURL, cookies=cookies)
-
-        if "/download-dialog/free/limit-exceeded" in str(r.text):
-            return "limit-exceeded", None, None
-
-        # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
-        captcha_image = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
-        if captcha_image is None:
-            raise RuntimeError("Cannot get CAPTCHA image URL")
-
-        captcha_data = {}
-        for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
-            captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
-
-        return "https:" + captcha_image, captcha_data, r.cookies
