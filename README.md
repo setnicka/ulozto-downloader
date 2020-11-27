@@ -19,6 +19,7 @@ s webovým rozhraním.
 * Dokáže přečíst sám CAPTCHA kódy díky projektu
   [ulozto-captcha-breaker](https://github.com/JanPalasek/ulozto-captcha-breaker) (thx Jan Palasek)
   * Louská kódy pomocí natrénovaného TensorFlow modelu
+* Download linky získává přes Tor, aby se vyhnul nové limitaci ze strany Uloz.to
 * Umí opakovaně využít stejný stahovací link pro více částí
   * Ulož.to nyní (podzim 2020) umožňuje získat jen dva stahovací linky za
     minutu, ale stejný link je možné používat po dostahování původní části
