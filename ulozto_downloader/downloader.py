@@ -273,22 +273,26 @@ class Downloader:
             print(colors.red("Wrong sized parts deleted, please restart the download"))
             sys.exit(1)
 
-        # 5. Concatenate all parts into final file and remove partial files
-        elapsed = time.time() - started
-        speed = (total_size - previously_downloaded) / elapsed if elapsed > 0 else 0  # in bytes per second
-        print(colors.green("All downloads finished"))
-        print("Stats: Downloaded {}{} MB in {} (average speed {} MB/s), merging files...".format(
-            round((total_size - previously_downloaded) / 1024**2, 2),
-            "" if previously_downloaded == 0 else ("/"+str(round(total_size / 1024**2, 2))),
-            str(timedelta(seconds=round(elapsed))),
-            round(speed / 1024**2, 2)
-        ))
-        with open(output_filename, "wb") as outfile:
+        if parts > 1:
+            # 5. Concatenate all parts into final file and remove partial files
+            elapsed = time.time() - started
+            speed = (total_size - previously_downloaded) / elapsed if elapsed > 0 else 0  # in bytes per second
+            print(colors.green("All downloads finished"))
+            print("Stats: Downloaded {}{} MB in {} (average speed {} MB/s), merging files...".format(
+                round((total_size - previously_downloaded) / 1024**2, 2),
+                "" if previously_downloaded == 0 else ("/"+str(round(total_size / 1024**2, 2))),
+                str(timedelta(seconds=round(elapsed))),
+                round(speed / 1024**2, 2)
+            ))
+            with open(output_filename, "wb") as outfile:
+                for part in downloads:
+                    with open(part['filename'], "rb") as infile:
+                        outfile.write(infile.read())
+
             for part in downloads:
-                with open(part['filename'], "rb") as infile:
-                    outfile.write(infile.read())
+                os.remove(part['filename'])
 
-        for part in downloads:
-            os.remove(part['filename'])
-
-        print(colors.green("Parts merged into output file '{}'".format(output_filename)))
+            print(colors.green("Parts merged into output file '{}'".format(output_filename)))
+        else:
+            os.rename(downloads[0]['filename'],output_filename)
+            print(colors.green("Download of {} finished".format(output_filename)))
