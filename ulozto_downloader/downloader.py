@@ -287,7 +287,12 @@ class Downloader:
             with open(output_filename, "wb") as outfile:
                 for part in downloads:
                     with open(part['filename'], "rb") as infile:
-                        outfile.write(infile.read())
+                        while True:
+                            data=infile.read(1024*1024*200)
+                            if not data:
+                                break
+                            outfile.write(data)
+                            del data
 
             for part in downloads:
                 os.remove(part['filename'])
