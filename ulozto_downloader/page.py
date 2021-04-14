@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 import requests
 import logging
 import ssl
+import colors
 
 from .const import XML_HEADERS
 
@@ -34,11 +35,12 @@ class Page:
     quickDownloadURL: str
     captchaURL: str
 
-    def __init__(self, url):
+    def __init__(self, url, password=None):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
                 url (str): URL of the page with file
+                password (str): Password of the file, optional and only used if the file is actually password-protected
 
             Raises:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
@@ -47,6 +49,8 @@ class Page:
         self.url = url
         parsed_url = urlparse(url)
         self.pagename = parsed_url.hostname.capitalize()
+
+        self.password = password
 
         cookies = None
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
@@ -67,6 +71,10 @@ class Page:
         r = requests.get(self.url, cookies=cookies)
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
+        # First, check if file is password protected, ask for the password and then continue
+        if r.status_code == 401:
+            r = self.enter_password(r)
+
         if r.status_code == 451:
             raise RuntimeError(f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
         elif r.status_code != 200:
@@ -78,6 +86,31 @@ class Page:
             raise RuntimeError(f"Cannot parse file slug from {self.pagename} URL")
 
         self.body = r.text
+
+    def enter_password(self, r, session=requests):
+        if not self.password:
+            self.password = input(colors.yellow(f"File is password-protected, enter the password: ")).strip()
+        r = session.post(
+            self.url,
+            data={
+                "password": self.password,
+                "password_send": "Odeslat",
+                "_do": "passwordProtectedForm-submit",
+            },
+            cookies=r.cookies,
+        )
+
+        # Accept the password and store (auth) cookies
+        if r.status_code == 200:
+            if session == requests:
+                # only print output if not inside TOR
+                print(colors.green("Password accepted."))
+            return r
+
+        # Wrong password, try again
+        print(colors.red("Wrong password, will try again."))
+        self.password = None
+        return self.enter_password(r)
 
     def parse(self):
         """Try to parse all information from the page (filename, download links, ...)
@@ -137,14 +170,23 @@ class Page:
                 with tor_requests_session(hops_count=2, retries=0) as s:
                     print_func("Tor connection established, solving CAPTCHA...")
 
+                    cookies = None
                     if urlparse(self.url).hostname == "pornfile.cz":
                         r = s.post("https://pornfile.cz/porn-disclaimer/", data={
                             "agree": "Souhlasím",
                             "_do": "pornDisclaimer-submit",
                         })
+                        cookies = r.cookies
 
                     while True:
-                        r = s.get(self.captchaURL, allow_redirects=False)
+                        r = s.get(self.captchaURL, allow_redirects=False, cookies=cookies)
+
+                        if r.status_code == 403:
+                            # 403 is unauthorized access, this means that the file is password-protected,
+                            #  and since we cannot share the session (cookies) to allow for parallel downloads,
+                            #  we have to enter the password separately in each TOR session
+                            r = self.enter_password(r, session=s)
+                            r = s.get(self.captchaURL, allow_redirects=False, cookies=r.cookies)
 
                         if r.status_code == 302:
                             # we got download URL without solving CAPTCHA, be happy

@@ -109,13 +109,14 @@ class Downloader:
         # Free this (still valid) download URL for next use
         download_url_queue.put(part['download_url'])
 
-    def download(self, url, parts=10, target_dir=""):
+    def download(self, url, parts=10, target_dir="", password=None):
         """Download file from Uloz.to using multiple parallel downloads.
 
             Arguments:
                 url (str): URL of the Uloz.to file to download
                 parts (int): Number of parts that will be downloaded in parallel (default: 10)
                 target_dir (str): Directory where the download should be saved (default: current directory)
+                password (str): Password to the Uloz.to file, optional (default: None)
         """
 
         self.url = url
@@ -133,7 +134,7 @@ class Downloader:
         # 1.1 Get all needed information
         print("Getting info (filename, filesize, ...)")
         try:
-            page = Page(url)
+            page = Page(url, password=password)
             page.parse()
         except RuntimeError as e:
             print(colors.red('Cannot download file: ' + str(e)))
