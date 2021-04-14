@@ -102,7 +102,7 @@ class Page:
 
         # Accept the password and store (auth) cookies
         if r.status_code == 200:
-            if session != requests:
+            if session == requests:
                 # only print output if not inside TOR
                 print(colors.green("Password accepted."))
             return r
