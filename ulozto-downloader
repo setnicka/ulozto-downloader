@@ -20,6 +20,8 @@ def main():
     parser.add_argument('--output', metavar='DIRECTORY', type=str, default="./", help='Target directory')
     parser.add_argument('--auto-captcha', default=False, action="store_true",
                         help='Try to solve captchas automatically using TensorFlow')
+    parser.add_argument('--password', type=str, default=None,
+                        help='Optional password if the file is password-protected')
     parser.add_argument('--version', action='version', version=__version__)
 
     args = parser.parse_args()
@@ -41,7 +43,7 @@ def main():
 
     signal.signal(signal.SIGINT, sigint_handler)
 
-    d.download(args.url, args.parts, args.output)
+    d.download(args.url, args.parts, args.output, password=args.password)
 
 
 if __name__ == "__main__":
