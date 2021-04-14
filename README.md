@@ -26,6 +26,7 @@ s webovým rozhraním.
     opakovaně pro stahování dalších částí
 * Umí navazovat přerušená stahování (pokud se zachová stejný počet částí)
 * Konzolový status panel
+* Umožňuje stahovat zaheslované soubory (na straně Ulož.to)
 
 ## Instalace
 
@@ -62,7 +63,9 @@ potřeba instalovat ručně).
 ## Použití
 
 Pro volbu automatického čtení CAPTCHA kódů slouží přepínač `--auto-captcha`,
-pro volbu počtu částí slouží přepínač `--parts N`.
+pro volbu počtu částí slouží přepínač `--parts N`,
+pro zadání hesla slouží přepínač `--password <heslo>`
+ (není nutné zadávat explicitně, program se na heslo sám zeptá, pokud zjistí, že je soubor zaheslovaný).
 
 ```shell
 $ ulozto-downloader --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
