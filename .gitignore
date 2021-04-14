@@ -6,3 +6,4 @@ model.tflite
 model.tflite.tmp
 .idea/
 venv/
+*.egg-info
