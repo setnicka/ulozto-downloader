@@ -68,14 +68,17 @@ class Page:
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
         if r.status_code == 451:
-            raise RuntimeError(f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
+            raise RuntimeError(
+                f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
         elif r.status_code != 200:
-            raise RuntimeError(f"{self.pagename} returned status code {r.status_code}, file does not exist")
+            raise RuntimeError(
+                f"{self.pagename} returned status code {r.status_code}, file does not exist")
 
         # Get file slug from URL
         self.slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
         if self.slug is None:
-            raise RuntimeError(f"Cannot parse file slug from {self.pagename} URL")
+            raise RuntimeError(
+                f"Cannot parse file slug from {self.pagename} URL")
 
         self.body = r.text
 

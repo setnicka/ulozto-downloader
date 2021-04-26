@@ -17,7 +17,8 @@ def main():
                         help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
     parser.add_argument('--parts', metavar='N', type=int, default=10,
                         help='Number of parts that will be downloaded in parallel')
-    parser.add_argument('--output', metavar='DIRECTORY', type=str, default="./", help='Target directory')
+    parser.add_argument('--output', metavar='DIRECTORY',
+                        type=str, default="./", help='Target directory')
     parser.add_argument('--auto-captcha', default=False, action="store_true",
                         help='Try to solve captchas automatically using TensorFlow')
     parser.add_argument('--version', action='version', version=__version__)
@@ -27,7 +28,8 @@ def main():
     if args.auto_captcha:
         model_path = "model.tflite"
         model_download_url = "https://github.com/JanPalasek/ulozto-captcha-breaker/releases/download/v2.2/model.tflite"
-        captcha_solve_fnc = captcha.AutoReadCaptcha(model_path, model_download_url)
+        captcha_solve_fnc = captcha.AutoReadCaptcha(
+            model_path, model_download_url)
     else:
         captcha_solve_fnc = captcha.tkinter_user_prompt
 
@@ -46,5 +48,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
