@@ -27,7 +27,8 @@ class Downloader:
     def terminate(self):
         self.terminating = True
         if self.cli_initialized:
-            sys.stdout.write("\033[{};{}H".format(self.parts + const.CLI_STATUS_STARTLINE + 2, 0))
+            sys.stdout.write("\033[{};{}H".format(
+                self.parts + const.CLI_STATUS_STARTLINE + 2, 0))
             sys.stdout.write("\033[?25h")  # show cursor
             self.cli_initialized = False
         print()
@@ -41,7 +42,8 @@ class Downloader:
 
     def _captcha_print_func_wrapper(self, text):
         if not self.cli_initialized:
-            sys.stdout.write(colors.blue("[CAPTCHA solve]\t") + text + "\033[K\r")
+            sys.stdout.write(colors.blue(
+                "[CAPTCHA solve]\t") + text + "\033[K\r")
         else:
             utils.print_captcha_status(text, self.parts)
 
@@ -71,12 +73,14 @@ class Downloader:
         })
 
         if r.status_code == 429:
-            utils.print_part_status(id, colors.yellow("Status code 429 Too Many Requests returned... will try again in few seconds"))
+            utils.print_part_status(id, colors.yellow(
+                "Status code 429 Too Many Requests returned... will try again in few seconds"))
             time.sleep(5)
             return Downloader._download_part(part, download_url_queue)
 
         if r.status_code != 206 and r.status_code != 200:
-            utils.print_part_status(id, colors.red(f"Status code {r.status_code} returned"))
+            utils.print_part_status(id, colors.red(
+                f"Status code {r.status_code} returned"))
             os.exit(1)
 
         with open(part['filename'], 'ab') as f:
@@ -88,12 +92,15 @@ class Downloader:
                     elapsed = time.time() - part['started']
 
                     # Print status line
-                    speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0  # in bytes per second
-                    remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0  # in seconds
+                    # speed in bytes per second:
+                    speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0
+                    # remaining time in seconds:
+                    remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0
 
                     utils.print_part_status(id, "{}%\t{:.2f}/{:.2f} MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
                         round(part['downloaded'] / part['size'] * 100, 1),
-                        round(part['downloaded'] / 1024**2, 2), round(part['size'] / 1024**2, 2),
+                        round(part['downloaded'] / 1024**2, 2),
+                        round(part['size'] / 1024**2, 2),
                         round(speed / 1024, 2),
                         str(timedelta(seconds=round(elapsed))),
                         str(timedelta(seconds=round(remaining))),
@@ -102,7 +109,9 @@ class Downloader:
         part['elapsed'] = time.time() - part['started']
         utils.print_part_status(id, colors.green("Successfully downloaded {}{} MB in {} (speed {} KB/s)".format(
             round(part['now_downloaded'] / 1024**2, 2),
-            "" if part['now_downloaded'] == part['downloaded'] else ("/"+str(round(part['downloaded'] / 1024**2, 2))),
+            "" if part['now_downloaded'] == part['downloaded'] else (
+                "/"+str(round(part['downloaded'] / 1024**2, 2))
+            ),
             str(timedelta(seconds=round(part['elapsed']))),
             round(part['now_downloaded'] / part['elapsed'] / 1024, 2) if part['elapsed'] > 0 else 0
         )))
@@ -142,7 +151,8 @@ class Downloader:
         # Do check
         output_filename = os.path.join(target_dir, page.filename)
         if os.path.isfile(output_filename):
-            print(colors.yellow("WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename)), end="")
+            print(colors.yellow(
+                "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename)), end="")
             if input().strip() != 'y':
                 sys.exit(1)
 
@@ -183,14 +193,17 @@ class Downloader:
         ]
 
         # 2. Initialize cli status table interface
-        os.system('cls' if os.name == 'nt' else 'clear')  # if windows, use 'cls', otherwise use 'clear'
+        # if windows, use 'cls', otherwise use 'clear'
+        os.system('cls' if os.name == 'nt' else 'clear')
         sys.stdout.write("\033[?25l")  # hide cursor
         self.cli_initialized = True
         print(colors.blue("File:\t\t") + colors.bold(page.filename))
         print(colors.blue("URL:\t\t") + page.url)
         print(colors.blue("Download type:\t") + download_type)
-        print(colors.blue("Total size:\t") + colors.bold("{}MB".format(round(total_size / 1024**2, 2))))
-        print(colors.blue("Parts:\t\t") + "{} x {}MB".format(parts, round(part_size / 1024**2, 2)))
+        print(colors.blue("Total size:\t") +
+              colors.bold("{}MB".format(round(total_size / 1024**2, 2))))
+        print(colors.blue("Parts:\t\t") +
+              "{} x {}MB".format(parts, round(part_size / 1024**2, 2)))
 
         for part in downloads:
             if isCAPTCHA:
@@ -220,7 +233,8 @@ class Downloader:
                 part['downloaded'] = os.path.getsize(part['filename'])
                 previously_downloaded += part['downloaded']
                 if part['downloaded'] == part['size']:
-                    utils.print_part_status(id, colors.green("Already downloaded from previous run, skipping"))
+                    utils.print_part_status(id, colors.green(
+                        "Already downloaded from previous run, skipping"))
                     continue
 
             if isCAPTCHA:
@@ -229,14 +243,16 @@ class Downloader:
                 part['download_url'] = download_url
 
             # Start download process in another process (parallel):
-            p = mp.Process(target=Downloader._download_part, args=(part, self.download_url_queue))
+            p = mp.Process(target=Downloader._download_part,
+                           args=(part, self.download_url_queue))
             p.start()
             self.processes.append(p)
 
         if isCAPTCHA:
             # no need for another CAPTCHAs
             self.captcha_process.terminate()
-            utils.print_captcha_status("All downloads started, no need to solve another CAPTCHAs", self.parts)
+            utils.print_captcha_status(
+                "All downloads started, no need to solve another CAPTCHAs", self.parts)
 
         # 4. Wait for all downloads to finish
         success = True
@@ -262,7 +278,8 @@ class Downloader:
                 os.remove(part['filename'])
                 checkError = True
 
-        sys.stdout.write("\033[{};{}H".format(parts + const.CLI_STATUS_STARTLINE + 2, 0))
+        sys.stdout.write("\033[{};{}H".format(
+            parts + const.CLI_STATUS_STARTLINE + 2, 0))
         sys.stdout.write("\033[K")
         sys.stdout.write("\033[?25h")  # show cursor
         self.cli_initialized = False
@@ -275,11 +292,14 @@ class Downloader:
 
         # 5. Concatenate all parts into final file and remove partial files
         elapsed = time.time() - started
-        speed = (total_size - previously_downloaded) / elapsed if elapsed > 0 else 0  # in bytes per second
+        # speed in bytes per second:
+        speed = (total_size - previously_downloaded) / elapsed if elapsed > 0 else 0
         print(colors.green("All downloads finished"))
         print("Stats: Downloaded {}{} MB in {} (average speed {} MB/s), merging files...".format(
             round((total_size - previously_downloaded) / 1024**2, 2),
-            "" if previously_downloaded == 0 else ("/"+str(round(total_size / 1024**2, 2))),
+            "" if previously_downloaded == 0 else (
+                "/"+str(round(total_size / 1024**2, 2))
+            ),
             str(timedelta(seconds=round(elapsed))),
             round(speed / 1024**2, 2)
         ))
