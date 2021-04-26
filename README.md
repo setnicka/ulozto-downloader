@@ -38,6 +38,10 @@ $ pip3 install --upgrade ulozto-downloader
 Toto instaluje všechny dependence **vyjma TensorFlow Lite** pro automatické
 louskání CAPTCHA kódů (protože repozitář PyPI zakazuje přímé URL dependence).
 
+### Instalace TORu
+
+Program vyžaduje spustitelný tor, protože používá stem a očekává ho v `$PATH`.
+
 ### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
 
 Na stránce [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python) si
