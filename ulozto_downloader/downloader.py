@@ -20,8 +20,9 @@ class Downloader:
     download_url_queue: mp.Queue
     parts: int
 
-    def __init__(self, captcha_solve_func):
+    def __init__(self, captcha_solve_func, tor):
         self.captcha_solve_func = captcha_solve_func
+        self.tor = tor
         self.cli_initialized = False
 
     def terminate(self):
@@ -38,12 +39,16 @@ class Downloader:
         for p in self.processes:
             p.terminate()
         print('Download terminated.')
+
+        self.tor.stop()
+        print('TOR end.')
+
         return
 
     def _captcha_print_func_wrapper(self, text):
         if not self.cli_initialized:
             sys.stdout.write(colors.blue(
-                "[CAPTCHA solve]\t") + text + "\033[K\r")
+                "[Link solve]\t") + text + "\033[K\r")
         else:
             utils.print_captcha_status(text, self.parts)
 
@@ -81,7 +86,7 @@ class Downloader:
         if r.status_code != 206 and r.status_code != 200:
             utils.print_part_status(id, colors.red(
                 f"Status code {r.status_code} returned"))
-            os.exit(1)
+            sys.exit(1)
 
         with open(part['filename'], 'ab') as f:
             for chunk in r.iter_content(chunk_size=1024):
@@ -118,15 +123,16 @@ class Downloader:
         # Free this (still valid) download URL for next use
         download_url_queue.put(part['download_url'])
 
-    def download(self, url, parts=10, target_dir=""):
+    def download(self, tor, url, parts=10, target_dir=""):
         """Download file from Uloz.to using multiple parallel downloads.
 
             Arguments:
+                tor (TorRunner): instance of TorRuner() class
                 url (str): URL of the Uloz.to file to download
                 parts (int): Number of parts that will be downloaded in parallel (default: 10)
                 target_dir (str): Directory where the download should be saved (default: current directory)
         """
-
+        self.tor = tor
         self.url = url
         self.parts = parts
         self.processes = []
@@ -137,13 +143,18 @@ class Downloader:
         started = time.time()
         previously_downloaded = 0
 
+        # 0 start stem tor
+        self.tor.start()
+
         # 1. Prepare downloads
         print("Starting downloading for url '{}'".format(url))
         # 1.1 Get all needed information
         print("Getting info (filename, filesize, ...)")
         try:
-            page = Page(url)
+            print("Wait one sec for sure TOR running")
+            page = Page(self.tor.tor_ports, url)
             page.parse()
+
         except RuntimeError as e:
             print(colors.red('Cannot download file: ' + str(e)))
             sys.exit(1)
@@ -186,6 +197,7 @@ class Downloader:
             {
                 'id': i + 1,
                 'filename': "{0}.part{1:0{width}}of{2}".format(output_filename, i + 1, parts, width=len(str(parts))),
+                # 'stat_filename': output_filename + '.udown',
                 'from': part_size * i,
                 'to': min(part_size * (i + 1), total_size) - 1,
                 'downloaded': 0,
@@ -218,7 +230,9 @@ class Downloader:
             self.download_url_queue.put(download_url)
 
             # Start CAPTCHA breaker in separate process
-            self.captcha_process = mp.Process(target=self._captcha_breaker, args=(page, self.parts))
+            self.captcha_process = mp.Process(
+                target=self._captcha_breaker, args=(page, self.parts)
+            )
             self.captcha_process.start()
 
         # 3. Start all downloads
@@ -229,6 +243,7 @@ class Downloader:
             part['size'] = part['to'] - part['from'] + 1
 
             # Test if the file isn't downloaded from previous download. If so, try to continue
+            # TODO instead of get filesize - open and parse part['stat_filename'] line
             if os.path.isfile(part['filename']):
                 part['downloaded'] = os.path.getsize(part['filename'])
                 previously_downloaded += part['downloaded']
@@ -290,6 +305,8 @@ class Downloader:
             print(colors.red("Wrong sized parts deleted, please restart the download"))
             sys.exit(1)
 
+        # 4.a stop stem tor
+        self.tor.stop()
         # 5. Concatenate all parts into final file and remove partial files
         elapsed = time.time() - started
         # speed in bytes per second:

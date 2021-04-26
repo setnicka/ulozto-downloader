@@ -15,7 +15,7 @@ setup(
     description='Uloz.to quick multiple sessions downloader.',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author='Jiří Setnička',
+    author='Jiří Setnička and Vlado Driver',
     author_email='setnicka@seznam.cz',
     url='https://github.com/setnicka/ulozto-downloader',
     install_requires=[
@@ -23,9 +23,10 @@ setup(
         'Pillow',
         'ansicolors',
         'numpy',
-        'torpy',
+        'pysocks',
+        'stem',
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     packages=setuptools.find_packages(),
     classifiers=[
         'License :: OSI Approved :: MIT License',
