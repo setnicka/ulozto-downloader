@@ -3,12 +3,13 @@ from urllib.parse import urlparse
 import requests
 import logging
 import ssl
+import colors
 
 from .const import XML_HEADERS
 
 from requests.sessions import RequestsCookieJar
-from torpy.http.requests import tor_requests_session
-
+from stem import Signal
+from stem.control import Controller
 # disable warnings and below from torpy
 logging.getLogger('torpy').setLevel(logging.ERROR)
 
@@ -34,16 +35,19 @@ class Page:
     quickDownloadURL: str
     captchaURL: str
 
-    def __init__(self, url):
+    def __init__(self, tor_ports, url):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
+                tor_ports: (tuple) : (SocksPort, ControlPort) tuple
                 url (str): URL of the page with file
 
             Raises:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
-
+        self.stats = {"all": 0, "ok": 0, "bad": 0,
+                      "lim": 0, "block": 0, "net": 0}  # statistics
+        self.tor_ports = tor_ports
         self.url = url
         parsed_url = urlparse(url)
         self.pagename = parsed_url.hostname.capitalize()
@@ -68,14 +72,17 @@ class Page:
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
         if r.status_code == 451:
-            raise RuntimeError(f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
+            raise RuntimeError(
+                f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
         elif r.status_code != 200:
-            raise RuntimeError(f"{self.pagename} returned status code {r.status_code}, file does not exist")
+            raise RuntimeError(
+                f"{self.pagename} returned status code {r.status_code}, file does not exist")
 
         # Get file slug from URL
         self.slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
         if self.slug is None:
-            raise RuntimeError(f"Cannot parse file slug from {self.pagename} URL")
+            raise RuntimeError(
+                f"Cannot parse file slug from {self.pagename} URL")
 
         self.body = r.text
 
@@ -87,7 +94,8 @@ class Page:
         """
 
         # Parse filename only to the first | (Uloz.to sometimes add titles like "name | on-line video | Ulož.to" and so on)
-        self.filename = parse_single(self.body, r'<title>([^\|]*)\s+\|.*</title>')
+        self.filename = parse_single(
+            self.body, r'<title>([^\|]*)\s+\|.*</title>')
 
         # Replace illegal characters in filename https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
         self.filename = re.sub(r'[<>:,\"/\\|\?*]', "-", self.filename)
@@ -96,19 +104,22 @@ class Page:
 
         # Some files may be download without CAPTCHA, there is special URL on the parsed page:
         # a) <a ... href="/slowDownload/E7jJsmR2ix73">...</a>
-        self.slowDownloadURL = parse_single(self.body, r'href="(/slowDownload/[^"]*)"')
+        self.slowDownloadURL = parse_single(
+            self.body, r'href="(/slowDownload/[^"]*)"')
         if self.slowDownloadURL:
             download_found = True
             self.slowDownloadURL = self.baseURL + self.slowDownloadURL
         # b) <a ... href="/quickDownload/E7jJsmR2ix73">...</a>
-        self.quickDownloadURL = parse_single(self.body, r'href="(/quickDownload/[^"]*)"')
+        self.quickDownloadURL = parse_single(
+            self.body, r'href="(/quickDownload/[^"]*)"')
         if self.quickDownloadURL:
             download_found = True
             self.quickDownloadURL = self.baseURL + self.quickDownloadURL
 
         # Other files are protected by CAPTCHA challenge
         # <a href="javascript:;" data-href="/download-dialog/free/default?fileSlug=apj0q49iETRR" class="c-button c-button__c-white js-free-download-button-dialog t-free-download-button">
-        self.captchaURL = parse_single(self.body, r'data-href="(/download-dialog/free/[^"]*)"')
+        self.captchaURL = parse_single(
+            self.body, r'data-href="(/download-dialog/free/[^"]*)"')
         if self.captchaURL:
             download_found = True
             self.captchaURL = self.baseURL + self.captchaURL
@@ -117,6 +128,54 @@ class Page:
         if not download_found:
             raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
                                + " no direct download URL and no CAPTCHA challenge URL found")
+
+    def _stat_fmt(self):
+        count = colors.blue(self.stats['all'])
+        ok = colors.green(self.stats['ok'])
+        bad = colors.red(self.stats['bad'])
+        lim = colors.red(self.stats['lim'])
+        blo = colors.red(self.stats['block'])
+        net = colors.red(self.stats['net'])
+        return f":) [Ok: {ok} / {count}] :( [Badcp: {bad} Limited: {lim} Censored: {blo} NetErr: {net}]"
+
+    # print TOR network error and += stats
+    def _error_net_stat(self, err, print_func):
+        self.stats["all"] += 1
+        print_func(colors.red(f"Network error: {err}"))
+        self.stats["net"] += 1
+
+    def _link_validation_stat(self, linkdata, is302):
+        self.stats["all"] += 1
+        ok = False
+
+        # search errors..
+        blk_str = 'blocked'
+        lim_str = 'limit-exceeded'
+
+        if is302:  # parse No-Captcha dl
+            if lim_str in linkdata:
+                self.stats["lim"] += 1
+            elif blk_str in linkdata:
+                self.stats["block"] += 1
+            else:
+                self.stats["ok"] += 1
+                ok = True
+        else:
+            if "formErrorContent" in linkdata:
+                self.stats["bad"] += 1
+            elif "redirectDialogContent" in linkdata and lim_str in linkdata["redirectDialogContent"]:
+                self.stats["lim"] += 1
+            elif "slowDownloadLink" in linkdata:
+                if blk_str in linkdata["slowDownloadLink"]:
+                    self.stats["block"] += 1
+                else:
+                    self.stats["ok"] += 1
+                    ok = True
+        return ok
+
+    def _captcha_send_print_stat(self, answer, print_func):
+        print_func(f"CAPTCHA input from user: {answer}")
+        print_func(f"Send CAPTCHA: '{answer}' {self._stat_fmt()}")
 
     def captcha_download_links_generator(self, captcha_solve_func, print_func=print):
         """
@@ -131,62 +190,85 @@ class Page:
                 str: URL for downloading the file
         """
 
-        while True:
-            print_func("Opening new Tor circuit (may take some time)...")
-            try:
-                with tor_requests_session(hops_count=2, retries=0) as s:
-                    print_func("Tor connection established, solving CAPTCHA...")
+        proxies = {
+            'http': 'socks5://127.0.0.1:' + str(self.tor_ports[0]),
+            'https': 'socks5://127.0.0.1:' + str(self.tor_ports[0])
+        }
 
+        while True:
+            try:
+                if self.stats["all"] > 0:
+                    c = Controller.from_port(port=self.tor_ports[1])
+                    c.authenticate()
+                    c.signal('RELOAD')
+
+            except:
+                print(colors.red('Failed to reload, this is big problem'))
+
+            print_func(
+                f"Get new TOR session. {self._stat_fmt()}")
+
+            try:
+                while True:
+                    s = requests.Session()
                     if urlparse(self.url).hostname == "pornfile.cz":
                         r = s.post("https://pornfile.cz/porn-disclaimer/", data={
                             "agree": "Souhlasím",
                             "_do": "pornDisclaimer-submit",
                         })
 
-                    while True:
-                        r = s.get(self.captchaURL, allow_redirects=False)
+                    r = s.get(self.captchaURL,
+                              allow_redirects=False, proxies=proxies)
 
-                        if r.status_code == 302:
-                            # we got download URL without solving CAPTCHA, be happy
-                            yield r.headers["location"]
-                            break  # from each Tor connection use only one download link to avoid 429 Too Many Connections
-
-                        if "/download-dialog/free/limit-exceeded" in str(r.text):
-                            print_func(f"Blocked by {self.pagename} download limit (before getting CAPTCHA). Changing Tor circuit.")
+                    if r.status_code == 302:
+                        # we got download URL without solving CAPTCHA, be happy
+                        nocpth = r.headers["location"]
+                        if self._link_validation_stat(nocpth, True):
+                            yield nocpth
+                        else:
                             break
 
-                        # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
-                        captcha_image_url = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
-                        if captcha_image_url is None:
-                            print_func("ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.")
-                            break
+                    # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
+                    captcha_image_url = parse_single(
+                        r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
+                    if captcha_image_url is None:
+                        print_func(
+                            "ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.")
+                        break
 
-                        captcha_data = {}
-                        for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
-                            captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
+                    captcha_data = {}
+                    for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
+                        captcha_data[name] = parse_single(
+                            r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
 
-                        print_func("Image URL obtained, trying to solve")
-                        captcha_answer = captcha_solve_func("https:" + captcha_image_url, print_func=print_func)
-                        # print_func("CAPTCHA input from user: {}".format(captcha_answer))
-                        captcha_data["captcha_value"] = captcha_answer
-                        response = s.post(self.captchaURL, data=captcha_data, headers=XML_HEADERS)
-                        response = response.json()
+                    print_func("Image URL obtained, trying to solve")
+                    captcha_answer = captcha_solve_func(
+                        "https:" + captcha_image_url, print_func=print_func)
 
-                        if "slowDownloadLink" in response:
-                            yield response["slowDownloadLink"]
-                            break  # from each Tor connection use only one download link to avoid 429 Too Many Connections
+                    captcha_data["captcha_value"] = captcha_answer
 
-                        if "/download-dialog/free/limit-exceeded" in str(response):
-                            print_func(f"Blocked by {self.pagename} download limit. Changing Tor circuit.")
-                            break
+                    self._captcha_send_print_stat(captcha_answer, print_func)
 
-                        print_func("Wrong CAPTCHA input '{}', try again...".format(captcha_answer))
+                    response = s.post(
+                        self.captchaURL, data=captcha_data, headers=XML_HEADERS, proxies=proxies)
+                    r_json = response.json()
+
+                    if self._link_validation_stat(r_json, False):
+                        yield r_json["slowDownloadLink"]
+                    else:
+                        break
+
             except requests.exceptions.ConnectionError:
-                print_func("Connection error, trying new Tor circuit")
+                self._error_net_stat(
+                    "Connection error, try new TOR session.", print_func)
             except requests.exceptions.ChunkedEncodingError:
-                print_func("Error while communicating over Tor, trying new Tor circuit")
+                self._error_net_stat(
+                    "Error while communicating over Tor, try new TOR session", print_func)
             except requests.exceptions.ReadTimeout:
-                print_func("ReadTimeout error, maybe not working Tor circuit, trying new Tor circuit")
-            except ssl.SSLError:
+                self._error_net_stat(
+                    "ReadTimeout error, try new TOR session.", print_func)
+
+            # maybe delete - is from non-used torpy
+            # except ssl.SSLError:
                 # Error raised on exit, just ignore it
-                return
+                # return

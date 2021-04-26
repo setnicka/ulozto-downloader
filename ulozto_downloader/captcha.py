@@ -88,6 +88,7 @@ class AutoReadCaptcha:
 
         print_func("Auto solving CAPTCHA")
 
+        #interpreter = tf.lite.Interpreter(model_content=self.model_content)
         interpreter = tflite.Interpreter(model_content=self.model_content)
 
         u = requests.get(img_url)

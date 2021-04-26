@@ -65,7 +65,7 @@ Pro volbu automatického čtení CAPTCHA kódů slouží přepínač `--auto-cap
 pro volbu počtu částí slouží přepínač `--parts N`.
 
 ```shell
-$ ulozto-downloader --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
+$ ulozto-downloader.py --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
 ```
 
 ![Ukázka stahování](https://raw.githubusercontent.com/setnicka/ulozto-downloader/master/example-screenshot.png)
