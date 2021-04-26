@@ -44,7 +44,7 @@ def main():
 
     signal.signal(signal.SIGINT, sigint_handler)
 
-    d.download(tor, args.url, args.parts, args.output)
+    d.download(args.url, args.parts, args.output)
 
 
 if __name__ == "__main__":
