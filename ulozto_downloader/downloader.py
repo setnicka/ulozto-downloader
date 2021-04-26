@@ -133,7 +133,6 @@ class Downloader:
                 parts (int): Number of parts that will be downloaded in parallel (default: 10)
                 target_dir (str): Directory where the download should be saved (default: current directory)
         """
-        self.tor = tor
         self.url = url
         self.parts = parts
         self.processes = []
