@@ -35,7 +35,7 @@ class Page:
     quickDownloadURL: str
     captchaURL: str
 
-    def __init__(self, tor_ports, url):
+    def __init__(self, tor, url):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
@@ -47,7 +47,7 @@ class Page:
         """
         self.stats = {"all": 0, "ok": 0, "bad": 0,
                       "lim": 0, "block": 0, "net": 0}  # statistics
-        self.tor_ports = tor_ports
+        self.tor = tor
         self.url = url
         parsed_url = urlparse(url)
         self.pagename = parsed_url.hostname.capitalize()
@@ -186,15 +186,18 @@ class Page:
                 str: URL for downloading the file
         """
 
+        # start tor
+        self.tor.start()
+
         proxies = {
-            'http': 'socks5://127.0.0.1:' + str(self.tor_ports[0]),
-            'https': 'socks5://127.0.0.1:' + str(self.tor_ports[0])
+            'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
+            'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
         }
 
         while True:
             try:
                 if self.stats["all"] > 0:
-                    c = Controller.from_port(port=self.tor_ports[1])
+                    c = Controller.from_port(port=self.tor.tor_ports[1])
                     c.authenticate()
                     c.signal('RELOAD')
 
