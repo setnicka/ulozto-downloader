@@ -18,6 +18,7 @@ class Downloader:
     captcha_process: mp.Process
     captcha_solve_func: FunctionType
     download_url_queue: mp.Queue
+    #dwnstat: dict
     parts: int
 
     def __init__(self, captcha_solve_func, tor):
@@ -124,7 +125,7 @@ class Downloader:
         # Free this (still valid) download URL for next use
         download_url_queue.put(part['download_url'])
 
-    def download(self, tor, url, parts=10, target_dir=""):
+    def download(self, url, parts=10, target_dir=""):
         """Download file from Uloz.to using multiple parallel downloads.
 
             Arguments:
@@ -143,16 +144,13 @@ class Downloader:
         started = time.time()
         previously_downloaded = 0
 
-        # 0 start stem tor
-        self.tor.start()
-
         # 1. Prepare downloads
         print("Starting downloading for url '{}'".format(url))
         # 1.1 Get all needed information
         print("Getting info (filename, filesize, ...)")
         try:
             print("Wait one sec for sure TOR running")
-            page = Page(self.tor.tor_ports, url)
+            page = Page(self.tor, url)
             page.parse()
 
         except RuntimeError as e:
