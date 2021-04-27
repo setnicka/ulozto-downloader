@@ -47,7 +47,6 @@ class TorRunner:
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),
             init_msg_handler=TorRunner.get_tor_ready)
-        print(self.process)
 
     def stop(self):
         print("Terminating tor..")

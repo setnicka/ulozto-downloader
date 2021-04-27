@@ -151,16 +151,22 @@ class Page:
     # print TOR network error and += stats
     def _error_net_stat(self, err, print_func):
         self.stats["all"] += 1
-        print_func(colors.red(f"Network error: {err}"))
+        print_func(colors.red(f"Network error get new TOR connection: {err}"))
         self.stats["net"] += 1
 
-    def _link_validation_stat(self, linkdata, is302):
+    def _link_validation_stat(self, linkdata, is302, print_func):
         self.stats["all"] += 1
         ok = False
 
         # search errors..
         blk_str = 'blocked'
         lim_str = 'limit-exceeded'
+        bcp_str = "formErrorContent"
+
+        # msgs
+        lim_msg = "IP limited TOR exit.. get new TOR session"
+        blk_msg = "Blocked TOR exit IP.. get new TOR session"
+        bcp_msg = "Bad captcha.. Try again using same IP"
 
         if is302:  # parse No-Captcha dl
             if lim_str in linkdata:
@@ -171,21 +177,23 @@ class Page:
                 self.stats["ok"] += 1
                 ok = True
         else:
-            if "formErrorContent" in linkdata:
+            if bcp_str in linkdata:
                 self.stats["bad"] += 1
+                print_func(colors.red(bcp_msg))
             elif "redirectDialogContent" in linkdata and lim_str in linkdata["redirectDialogContent"]:
                 self.stats["lim"] += 1
+                print_func(colors.red(lim_msg))
             elif "slowDownloadLink" in linkdata:
                 if blk_str in linkdata["slowDownloadLink"]:
                     self.stats["block"] += 1
+                    print_func(colors.red(blk_msg))
                 else:
                     self.stats["ok"] += 1
                     ok = True
         return ok
 
-    def _captcha_send_print_stat(self, answer, print_func):
-        print_func(f"CAPTCHA input from user: {answer}")
-        print_func(f"Send CAPTCHA: '{answer}' {self._stat_fmt()}")
+    def _captcha_send_print_stat(self, answ, print_func):
+        print_func(f"Send CAPTCHA:  '{answ}' {self._stat_fmt()}")
 
     def captcha_download_links_generator(self, captcha_solve_func, print_func=print):
         """
@@ -233,16 +241,19 @@ class Page:
                         print_func(
                             f"New TOR session for GET downlink {self._stat_fmt()}")
                     else:
-                        r = s.get(self.captchaURL, allow_redirects=False)
+                        r = s.get(self.captchaURL,
+                                  allow_redirects=False)
                         print_func(
                             f"New TOR session for POST captcha {self._stat_fmt()}")
 
                     if r.status_code == 302:
                         # we got download URL without solving CAPTCHA, be happy
                         nocpth = r.headers["location"]
-                        if self._link_validation_stat(nocpth, True):
+                        if self._link_validation_stat(nocpth, True, print_func):
                             yield nocpth
                         else:
+                            print_func(
+                                f"Get download link {colors.red('failed')} New TOR {self._stat_fmt()}")
                             break
 
                     if not self.isDirectDownload:
@@ -274,7 +285,7 @@ class Page:
                             self.captchaURL, data=captcha_data, headers=XML_HEADERS, proxies=proxies)
                         r_json = response.json()
 
-                        if self._link_validation_stat(r_json, False):
+                        if self._link_validation_stat(r_json, False, print_func):
                             yield r_json["slowDownloadLink"]
                         else:
                             break
