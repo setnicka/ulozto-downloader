@@ -54,9 +54,15 @@ class Downloader:
             utils.print_captcha_status(text, self.parts)
 
     def _captcha_breaker(self, page, parts):
-        utils.print_captcha_status("Solving CAPTCHA...", parts)
+        msg = ""
+        if page.isDirectDownload:
+            msg = f"Solve direct dlink ...: {page._stat_fmt()}"
+        else:
+            msg = f"Solve CAPTCHA dlink..: {page._stat_fmt()}"
+
+        utils.print_captcha_status(msg, parts)
         for url in self.captcha_download_links_generator:
-            utils.print_captcha_status("Solving CAPTCHA...", parts)
+            utils.print_captcha_status(msg, parts)
             self.download_url_queue.put(url)
 
     @staticmethod
