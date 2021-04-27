@@ -34,6 +34,7 @@ class Page:
     slowDownloadURL: str
     quickDownloadURL: str
     captchaURL: str
+    isDirectDownload: bool
 
     def __init__(self, tor, url):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
@@ -112,6 +113,15 @@ class Page:
         if self.quickDownloadURL:
             download_found = True
             self.quickDownloadURL = self.baseURL + self.quickDownloadURL
+
+        # detect direct download from self.body
+        isDirect = parse_single(
+            self.body, r'data-href="/download-dialog/free/[^"]+" +class=".+(js-free-download-button-direct).+"')
+
+        if isDirect == 'js-free-download-button-direct':
+            self.isDirectDownload = True
+        else:
+            self.isDirectDownload = False
 
         # Other files are protected by CAPTCHA challenge
         # <a href="javascript:;" data-href="/download-dialog/free/default?fileSlug=apj0q49iETRR" class="c-button c-button__c-white js-free-download-button-dialog t-free-download-button">
@@ -204,9 +214,6 @@ class Page:
             except:
                 print(colors.red('Failed to reload, this is big problem'))
 
-            print_func(
-                f"Get new TOR session. {self._stat_fmt()}")
-
             try:
                 while True:
                     s = requests.Session()
@@ -216,8 +223,15 @@ class Page:
                             "_do": "pornDisclaimer-submit",
                         })
 
-                    r = s.get(self.captchaURL,
-                              allow_redirects=False, proxies=proxies)
+                    if self.isDirectDownload:
+                        r = s.get(self.captchaURL,
+                                  allow_redirects=False, proxies=proxies)
+                        print_func(
+                            f"New TOR session for GET downlink {self._stat_fmt()}")
+                    else:
+                        r = s.get(self.captchaURL, allow_redirects=False)
+                        print_func(
+                            f"New TOR session for POST captcha {self._stat_fmt()}")
 
                     if r.status_code == 302:
                         # we got download URL without solving CAPTCHA, be happy
@@ -227,33 +241,37 @@ class Page:
                         else:
                             break
 
-                    # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
-                    captcha_image_url = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
-                    if captcha_image_url is None:
-                        print_func(
-                            "ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.")
-                        break
+                    if not self.isDirectDownload:
+                        # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
+                        captcha_image_url = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
+                        if captcha_image_url is None:
+                            print_func(
+                                "ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.")
+                            self.stats["all"] += 1
+                            self.stats["net"] += 1
+                            break
 
-                    captcha_data = {}
-                    for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
-                        captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
+                        captcha_data = {}
+                        for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
+                            captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
 
-                    print_func("Image URL obtained, trying to solve")
-                    captcha_answer = captcha_solve_func(
-                        "https:" + captcha_image_url, print_func=print_func)
+                        print_func("Image URL obtained, trying to solve")
+                        captcha_answer = captcha_solve_func(
+                            "https:" + captcha_image_url, print_func=print_func)
 
-                    captcha_data["captcha_value"] = captcha_answer
+                        captcha_data["captcha_value"] = captcha_answer
 
-                    self._captcha_send_print_stat(captcha_answer, print_func)
+                        self._captcha_send_print_stat(
+                            captcha_answer, print_func)
 
-                    response = s.post(
-                        self.captchaURL, data=captcha_data, headers=XML_HEADERS, proxies=proxies)
-                    r_json = response.json()
+                        response = s.post(
+                            self.captchaURL, data=captcha_data, headers=XML_HEADERS, proxies=proxies)
+                        r_json = response.json()
 
-                    if self._link_validation_stat(r_json, False):
-                        yield r_json["slowDownloadLink"]
-                    else:
-                        break
+                        if self._link_validation_stat(r_json, False):
+                            yield r_json["slowDownloadLink"]
+                        else:
+                            break
 
             except requests.exceptions.ConnectionError:
                 self._error_net_stat(
