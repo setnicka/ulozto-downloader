@@ -40,9 +40,9 @@ class Downloader:
         for p in self.processes:
             p.terminate()
         print('Download terminated.')
-
-        self.tor.stop()
-        print('TOR end.')
+        if self.isLimited:
+            self.tor.stop()
+            print('TOR end.')
 
         return
 
