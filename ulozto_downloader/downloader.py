@@ -156,7 +156,6 @@ class Downloader:
         # 1.1 Get all needed information
         print("Getting info (filename, filesize, ...)")
         try:
-            print("Wait one sec for sure TOR running")
             page = Page(self.tor, url)
             page.parse()
 
