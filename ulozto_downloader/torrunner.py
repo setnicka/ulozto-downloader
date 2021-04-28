@@ -26,12 +26,12 @@ class TorRunner:
 
     @staticmethod
     def get_tor_ready(line):
-        print(line)  # log
+        print(f"\r{line}", end="")  # log
         if "Bootstrapped 100%" in line:
-            print("TOR is ready, download links started")
+            print(f"\rTOR is ready, download links started")
 
     def start(self):
-        print("make datadir")
+        print("Make datadir")
         self.ddir = "tor_data_" + str(uuid.uuid4())
         os.mkdir(self.ddir)
         print("Write torrc")
@@ -43,10 +43,11 @@ class TorRunner:
         c = open(os.path.join(self.ddir, "torrc"), "w")
         c.write(config)
         c.close()
+        print("Start TOR")
 
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),
-            init_msg_handler=TorRunner.get_tor_ready)
+            init_msg_handler=TorRunner.get_tor_ready, close_output=True)
 
     def stop(self):
         print("Terminating tor..")

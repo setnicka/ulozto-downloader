@@ -156,7 +156,7 @@ class Page:
         print_func(colors.red(f"Network error get new TOR connection: {err}"))
         self.stats["net"] += 1
 
-    def _link_validation_stat(self, linkdata, is302, print_func):
+    def _link_validation_stat(self, linkdata, print_func):
         self.stats["all"] += 1
         ok = False
 
@@ -170,28 +170,21 @@ class Page:
         blk_msg = "Blocked TOR exit IP.. get new TOR session"
         bcp_msg = "Bad captcha.. Try again using same IP"
 
-        if is302:  # parse No-Captcha dl
-            if lim_str in linkdata:
-                self.stats["lim"] += 1
-            elif blk_str in linkdata:
+        if bcp_str in linkdata:
+            self.stats["bad"] += 1
+            print_func(colors.red(bcp_msg))
+        elif "redirectDialogContent" in linkdata and lim_str in linkdata["redirectDialogContent"]:
+            self.stats["lim"] += 1
+            if not self.isDirectDownload:
+                print_func(colors.red(lim_msg))
+        elif "slowDownloadLink" in linkdata:
+            if blk_str in linkdata["slowDownloadLink"]:
                 self.stats["block"] += 1
+                if not self.isDirectDownload:
+                    print_func(colors.red(blk_msg))
             else:
                 self.stats["ok"] += 1
                 ok = True
-        else:
-            if bcp_str in linkdata:
-                self.stats["bad"] += 1
-                print_func(colors.red(bcp_msg))
-            elif "redirectDialogContent" in linkdata and lim_str in linkdata["redirectDialogContent"]:
-                self.stats["lim"] += 1
-                print_func(colors.red(lim_msg))
-            elif "slowDownloadLink" in linkdata:
-                if blk_str in linkdata["slowDownloadLink"]:
-                    self.stats["block"] += 1
-                    print_func(colors.red(blk_msg))
-                else:
-                    self.stats["ok"] += 1
-                    ok = True
         return ok
 
     def _captcha_send_print_stat(self, answ, print_func):
@@ -238,25 +231,19 @@ class Page:
                         })
 
                     if self.isDirectDownload:
-                        r = s.get(self.captchaURL,
-                                  allow_redirects=False, proxies=proxies)
+                        r = s.get(self.captchaURL, proxies=proxies,
+                                  headers=XML_HEADERS)
                         print_func(
                             f"New TOR session for GET downlink {self._stat_fmt()}")
                     else:
-                        r = s.get(self.captchaURL,
-                                  allow_redirects=False)
+                        r = s.get(self.captchaURL, headers=XML_HEADERS)
                         print_func(
                             f"New TOR session for POST captcha {self._stat_fmt()}")
 
-                    if r.status_code == 302:
-                        # we got download URL without solving CAPTCHA, be happy
-                        nocpth = r.headers["location"]
-                        if self._link_validation_stat(nocpth, True, print_func):
-                            yield nocpth
-                        else:
-                            break
-
-                    if not self.isDirectDownload:
+                    r_json = None
+                    if self.isDirectDownload:
+                        r_json = r.json()
+                    else:
                         # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                         captcha_image_url = parse_single(
                             r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
@@ -283,12 +270,14 @@ class Page:
 
                         response = s.post(
                             self.captchaURL, data=captcha_data, headers=XML_HEADERS, proxies=proxies)
+
                         r_json = response.json()
 
-                        if self._link_validation_stat(r_json, False, print_func):
-                            yield r_json["slowDownloadLink"]
-                        else:
-                            break
+                    # generate result or break
+                    if self._link_validation_stat(r_json, print_func):
+                        yield r_json["slowDownloadLink"]
+                    else:
+                        break
 
             except requests.exceptions.ConnectionError:
                 self._error_net_stat(
