@@ -60,9 +60,9 @@ class Downloader:
         else:
             msg = f"Solve CAPTCHA dlink .."
 
-        utils.print_captcha_status(msg, parts)
+        #utils.print_captcha_status(msg, parts)
         for url in self.captcha_download_links_generator:
-            #utils.print_captcha_status(msg, parts)
+            utils.print_captcha_status(msg, parts)
             self.download_url_queue.put(url)
 
     @staticmethod
@@ -146,6 +146,8 @@ class Downloader:
         self.captcha_process = None
         self.target_dir = target_dir
         self.terminating = False
+        self.isLimited = False
+        self.isCaptcha = False
 
         started = time.time()
         previously_downloaded = 0
@@ -171,21 +173,21 @@ class Downloader:
             if input().strip() != 'y':
                 sys.exit(1)
 
-        isCAPTCHA = False
         if page.quickDownloadURL is not None:
             print("You are VERY lucky, this is QUICK direct download without CAPTCHA, downloading as 1 quick part :)")
-            download_type = "fullspeed direct download (without CAPTCHA)"
+            self.download_type = "fullspeed direct download (without CAPTCHA)"
             download_url = page.quickDownloadURL
-            parts = 1
-            self.parts = 1
-        elif page.slowDownloadURL is not None:
-            print("You are lucky, this is slow direct download without CAPTCHA :)")
-            download_type = "slow direct download (without CAPTCHA)"
-            download_url = page.slowDownloadURL
-        else:
-            print("CAPTCHA protected download - CAPTCHA challenges will be displayed\n")
-            download_type = "CAPTCHA protected download"
-            isCAPTCHA = True
+        if page.slowDownloadURL is not None:
+            self.isLimited = True
+            if page.isDirectDownload:
+                print("You are lucky, this is slow direct download without CAPTCHA :)")
+                self.download_type = "slow direct download (without CAPTCHA)"
+            else:
+                self.isCaptcha = True
+                print(
+                    "CAPTCHA protected download - CAPTCHA challenges will be displayed\n")
+                self.download_type = "CAPTCHA protected download"
+
             self.captcha_download_links_generator = page.captcha_download_links_generator(
                 captcha_solve_func=self.captcha_solve_func,
                 print_func=self._captcha_print_func_wrapper
@@ -215,26 +217,26 @@ class Downloader:
         self.cli_initialized = True
         print(colors.blue("File:\t\t") + colors.bold(page.filename))
         print(colors.blue("URL:\t\t") + page.url)
-        print(colors.blue("Download type:\t") + download_type)
+        print(colors.blue("Download type:\t") + self.download_type)
         print(colors.blue("Total size:\t") +
               colors.bold("{}MB".format(round(total_size / 1024**2, 2))))
         print(colors.blue("Parts:\t\t") +
               "{} x {}MB".format(parts, round(part_size / 1024**2, 2)))
 
         for part in downloads:
-            if isCAPTCHA:
-                utils.print_part_status(part['id'], "Waiting for CAPTCHA...")
-            else:
+            if page.isDirectDownload:
                 utils.print_part_status(
-                    part['id'], "Waiting for download to start...")
+                    part['id'], "Waiting for direct link...")
+            else:
+                utils.print_part_status(part['id'], "Waiting for CAPTCHA...")
 
         # Prepare queue for recycling download URLs
         self.download_url_queue = mp.Queue(maxsize=0)
-        if isCAPTCHA:
+        if self.isLimited:
             # Reuse already solved CAPTCHA
             self.download_url_queue.put(download_url)
-
-            # Start CAPTCHA breaker in separate process
+        # if self.isCaptcha:
+        # Start CAPTCHA breaker in separate process
             self.captcha_process = mp.Process(
                 target=self._captcha_breaker, args=(page, self.parts))
             self.captcha_process.start()
@@ -256,7 +258,7 @@ class Downloader:
                         "Already downloaded from previous run, skipping"))
                     continue
 
-            if isCAPTCHA:
+            if self.isLimited:
                 part['download_url'] = self.download_url_queue.get()
             else:
                 part['download_url'] = download_url
@@ -267,11 +269,16 @@ class Downloader:
             p.start()
             self.processes.append(p)
 
-        if isCAPTCHA:
+        if self.isCaptcha:
             # no need for another CAPTCHAs
             self.captcha_process.terminate()
-            utils.print_captcha_status(
-                "All downloads started, no need to solve another CAPTCHAs", self.parts)
+        if self.isLimited:
+            if self.isCaptcha:
+                utils.print_captcha_status(
+                    "All downloads started, no need to solve another CAPTCHAs..", self.parts)
+            else:
+                utils.print_captcha_status(
+                    "All downloads started, no need to solve another direct links..", self.parts)
 
         # 4. Wait for all downloads to finish
         success = True
@@ -309,8 +316,9 @@ class Downloader:
             print(colors.red("Wrong sized parts deleted, please restart the download"))
             sys.exit(1)
 
-        # 4.a stop stem tor
-        self.tor.stop()
+        # 4.a stop stem tor if is limited download
+        if self.isLimited:
+            self.tor.stop()
         # 5. Concatenate all parts into final file and remove partial files
         elapsed = time.time() - started
         speed = (total_size - previously_downloaded) / \

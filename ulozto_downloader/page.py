@@ -105,11 +105,12 @@ class Page:
 
         # Some files may be download without CAPTCHA, there is special URL on the parsed page:
         # a) <a ... href="/slowDownload/E7jJsmR2ix73">...</a>
-        self.slowDownloadURL = parse_single(
-            self.body, r'href="(/slowDownload/[^"]*)"')
-        if self.slowDownloadURL:
-            download_found = True
-            self.slowDownloadURL = self.baseURL + self.slowDownloadURL
+        # self.slowDownloadURL = parse_single(
+        #     self.body, r'<div class="(download-slow)"')
+
+        # if self.slowDownloadURL:
+        #     download_found = True
+        #     self.slowDownloadURL = self.baseURL + self.slowDownloadURL
         # b) <a ... href="/quickDownload/E7jJsmR2ix73">...</a>
         self.quickDownloadURL = parse_single(
             self.body, r'href="(/quickDownload/[^"]*)"')
@@ -133,6 +134,7 @@ class Page:
         if self.captchaURL:
             download_found = True
             self.captchaURL = self.baseURL + self.captchaURL
+        self.slowDownloadURL = self.captchaURL
 
         # Check if slowDirectDownload or form data for CAPTCHA was parsed
         if not download_found:
@@ -252,8 +254,6 @@ class Page:
                         if self._link_validation_stat(nocpth, True, print_func):
                             yield nocpth
                         else:
-                            print_func(
-                                f"Get download link {colors.red('failed')} New TOR {self._stat_fmt()}")
                             break
 
                     if not self.isDirectDownload:
