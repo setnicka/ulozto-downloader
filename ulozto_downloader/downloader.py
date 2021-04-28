@@ -268,10 +268,9 @@ class Downloader:
             p.start()
             self.processes.append(p)
 
-        if self.isCaptcha:
+        if self.isLimited:
             # no need for another CAPTCHAs
             self.captcha_process.terminate()
-        if self.isLimited:
             if self.isCaptcha:
                 utils.print_captcha_status(
                     "All downloads started, no need to solve another CAPTCHAs..", self.parts)
