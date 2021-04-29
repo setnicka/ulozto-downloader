@@ -205,11 +205,12 @@ class Page:
             'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
             'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
         }
+        c = Controller.from_port(port=self.tor.tor_ports[1])
 
         while True:
             try:
                 if self.stats["all"] > 0:
-                    c = Controller.from_port(port=self.tor.tor_ports[1])
+                    c.connect()
                     c.authenticate()
                     c.signal('RELOAD')
 
@@ -225,16 +226,17 @@ class Page:
                             "_do": "pornDisclaimer-submit",
                         })
 
+                    req = requests.Request(
+                        "GET", self.captchaURL, headers=XML_HEADERS)
+                    preprq = req.prepare()
                     if self.isDirectDownload:
-                        r = s.get(self.captchaURL, proxies=proxies,
-                                  headers=XML_HEADERS)
+                        r = s.send(preprq, proxies=proxies)
                         print_func(
                             f"New TOR session for GET downlink {self._stat_fmt()}")
                     else:
-                        r = s.get(self.captchaURL, headers=XML_HEADERS)
+                        r = s.send(preprq)
                         print_func(
                             f"New TOR session for POST captcha {self._stat_fmt()}")
-
                     r_json = None
                     if self.isDirectDownload:
                         r_json = r.json()
@@ -260,12 +262,14 @@ class Page:
 
                         self._captcha_send_print_stat(
                             captcha_answer, print_func)
+                        req = requests.Request(
+                            "POST", self.captchaURL, data=captcha_data, headers=XML_HEADERS)
+                        prepreq = req.prepare()
+                        r = s.send(prepreq, proxies=proxies)
+                        r_json = r.json()
 
-                        response = s.post(
-                            self.captchaURL, data=captcha_data, headers=XML_HEADERS, proxies=proxies)
-
-                        r_json = response.json()
-
+                    c.close()  # close TOR controller
+                    s.close()  # close connections
                     # generate result or break
                     if self._link_validation_stat(r_json, print_func):
                         yield r_json["slowDownloadLink"]
@@ -281,8 +285,3 @@ class Page:
             except requests.exceptions.ReadTimeout:
                 self._error_net_stat(
                     "ReadTimeout error, try new TOR session.", print_func)
-
-            # maybe delete - is from non-used torpy
-            # except ssl.SSLError:
-                # Error raised on exit, just ignore it
-                # return
