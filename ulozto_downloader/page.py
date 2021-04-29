@@ -205,12 +205,11 @@ class Page:
             'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
             'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
         }
-        c = Controller.from_port(port=self.tor.tor_ports[1])
 
         while True:
             try:
                 if self.stats["all"] > 0:
-                    c.connect()
+                    c = Controller.from_port(port=self.tor.tor_ports[1])
                     c.authenticate()
                     c.signal('RELOAD')
 
@@ -268,7 +267,7 @@ class Page:
                         r = s.send(prepreq, proxies=proxies)
                         r_json = r.json()
 
-                    c.close()  # close TOR controller
+                    # c.close()  # close TOR controller
                     s.close()  # close connections
                     # generate result or break
                     if self._link_validation_stat(r_json, print_func):
