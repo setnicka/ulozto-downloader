@@ -8,8 +8,7 @@ import colors
 from .const import XML_HEADERS
 
 from requests.sessions import RequestsCookieJar
-from stem import Signal
-from stem.control import Controller
+
 # disable warnings and below from torpy
 logging.getLogger('torpy').setLevel(logging.ERROR)
 
@@ -212,14 +211,9 @@ class Page:
         }
 
         while True:
-            try:
-                if self.stats["all"] > 0:
-                    c = Controller.from_port(port=self.tor.tor_ports[1])
-                    c.authenticate()
-                    c.signal('RELOAD')
-
-            except:
-                print(colors.red('Failed to reload, this is big problem'))
+            # reload tor after 1. use
+            if self.stats["all"] > 0:
+                self.tor.reload()
 
             try:
                 while True:
