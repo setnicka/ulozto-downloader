@@ -1,5 +1,7 @@
 import socket
 import stem.process
+from stem import Signal
+from stem.control import Controller
 import os
 import uuid
 import shutil
@@ -47,11 +49,19 @@ class TorRunner:
         c = open(os.path.join(self.ddir, "torrc"), "w")
         c.write(config)
         c.close()
-        print("Start TOR")
 
+        print("Start TOR")
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),
             init_msg_handler=TorRunner.get_tor_ready, close_output=True)
+
+    def reload(self):
+        try:
+            self.ctrl = Controller.from_port(port=self.tor_ports[1])
+            self.ctrl.authenticate()
+            self.ctrl.signal("RELOAD")
+        except:
+            print('Tor reload failed')
 
     def stop(self):
         print("Terminating tor..")
@@ -62,3 +72,6 @@ class TorRunner:
 
         if os.path.exists(self.ddir):
             shutil.rmtree(self.ddir, ignore_errors=True)
+
+    def __del__(self):
+        self.ctrl.close()
