@@ -56,12 +56,9 @@ class TorRunner:
             init_msg_handler=TorRunner.get_tor_ready, close_output=True)
 
     def reload(self):
-        try:
-            self.ctrl = Controller.from_port(port=self.tor_ports[1])
-            self.ctrl.authenticate()
-            self.ctrl.signal("RELOAD")
-        except:
-            print('Tor reload failed')
+        self.ctrl = Controller.from_port(port=self.tor_ports[1])
+        self.ctrl.authenticate()
+        self.ctrl.signal("RELOAD")
 
     def stop(self):
         print("Terminating tor..")
@@ -74,4 +71,5 @@ class TorRunner:
             shutil.rmtree(self.ddir, ignore_errors=True)
 
     def __del__(self):
-        self.ctrl.close()
+        if hasattr(self, "ctrl"):
+            self.ctrl.close()
