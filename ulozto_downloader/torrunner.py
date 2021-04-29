@@ -3,6 +3,7 @@ import stem.process
 import os
 import uuid
 import shutil
+import re
 
 
 class TorRunner:
@@ -26,7 +27,10 @@ class TorRunner:
 
     @staticmethod
     def get_tor_ready(line):
-        print(f"\r{line}", end="")  # log
+        p = re.compile(r'Bootstrapped \d+%')
+        msg = re.findall(p, line)
+        if len(msg) > 0:
+            print(f"Tor: {msg[0]}\r", end="")  # log
         if "Bootstrapped 100%" in line:
             print(f"\rTOR is ready, download links started")
 

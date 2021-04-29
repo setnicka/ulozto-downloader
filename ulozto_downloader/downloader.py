@@ -18,7 +18,6 @@ class Downloader:
     captcha_process: mp.Process
     captcha_solve_func: FunctionType
     download_url_queue: mp.Queue
-    #dwnstat: dict
     parts: int
 
     def __init__(self, captcha_solve_func, tor):
@@ -95,6 +94,7 @@ class Downloader:
                 f"Status code {r.status_code} returned"))
             sys.exit(1)
 
+        # TODO reimplement as multisegment write file class
         with open(part['filename'], 'ab') as f:
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:  # filter out keep-alive new chunks
@@ -118,7 +118,7 @@ class Downloader:
                         str(timedelta(seconds=round(elapsed))),
                         str(timedelta(seconds=round(remaining))),
                     ))
-
+        # download end status
         part['elapsed'] = time.time() - part['started']
         utils.print_part_status(id, colors.green("Successfully downloaded {}{} MB in {} (speed {} KB/s)".format(
             round(part['now_downloaded'] / 1024**2, 2),
@@ -202,7 +202,9 @@ class Downloader:
             {
                 'id': i + 1,
                 'filename': "{0}.part{1:0{width}}of{2}".format(output_filename, i + 1, parts, width=len(str(parts))),
-                # 'stat_filename': output_filename + '.udown',
+                'file': output_filename,
+                # TODO one line / part [from/to/dosnloaded]
+                'stat_filename': f"{output_filename}.udown",
                 'from': part_size * i,
                 'to': min(part_size * (i + 1), total_size) - 1,
                 'downloaded': 0,
@@ -222,6 +224,7 @@ class Downloader:
         print(colors.blue("Parts:\t\t") +
               "{} x {}MB".format(parts, round(part_size / 1024**2, 2)))
 
+        # fill placeholder before Download._download_part start() started
         for part in downloads:
             if page.isDirectDownload:
                 utils.print_part_status(
@@ -231,16 +234,19 @@ class Downloader:
 
         # Prepare queue for recycling download URLs
         self.download_url_queue = mp.Queue(maxsize=0)
+
+        # limited must use TOR and solve links or captcha
         if self.isLimited:
-            # Reuse already solved CAPTCHA
+            # Reuse already solved links
             self.download_url_queue.put(download_url)
-        # if self.isCaptcha:
-        # Start CAPTCHA breaker in separate process
+
+            # Start CAPTCHA breaker in separate process
             self.captcha_process = mp.Process(
                 target=self._captcha_breaker, args=(page, self.parts))
             self.captcha_process.start()
 
         # 3. Start all downloads
+        # TODO
         for part in downloads:
             if self.terminating:
                 return
@@ -248,8 +254,8 @@ class Downloader:
             part['size'] = part['to'] - part['from'] + 1
 
             # Test if the file isn't downloaded from previous download. If so, try to continue
-            # TODO instead of get filesize - open and parse part['stat_filename'] line
             if os.path.isfile(part['filename']):
+                # TODO instead of get filesize - open and parse part['stat_filename'] line
                 part['downloaded'] = os.path.getsize(part['filename'])
                 previously_downloaded += part['downloaded']
                 if part['downloaded'] == part['size']:
