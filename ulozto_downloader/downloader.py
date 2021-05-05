@@ -4,7 +4,10 @@ import multiprocessing as mp
 import time
 import math
 from datetime import timedelta
+from .linkcache import LinkCache
+from .const import CACHEPREFIX
 from types import FunctionType
+
 import requests
 import colors
 
@@ -129,11 +132,8 @@ class Downloader:
             round(part.now_downloaded / part.elapsed / 1024, 2) if part.elapsed > 0 else 0
         )))
 
-        # close maybe use __del__ destructor
-        if not part.sfp.closed:
-            part.sfp.close()
-        if not part.fp.closed:
-            part.fp.close()
+        # close files
+        part.close()
 
     def download(self, url, parts=10, target_dir=""):
         """Download file from Uloz.to using multiple parallel downloads.
@@ -242,8 +242,8 @@ class Downloader:
             self.captcha_process = mp.Process(
                 target=self._captcha_breaker, args=(page, self.parts)
             )
-            self.captcha_process.start()
 
+        cpb_started = False
         # 3. Start all downloads fill self.processes
         for part in downloads:
             if self.terminating:
@@ -256,6 +256,9 @@ class Downloader:
                 continue
 
             if self.isLimited:
+                if not cpb_started:
+                    self.captcha_process.start()
+                    cpb_started = True
                 part.download_url = self.download_url_queue.get()
             else:
                 part.download_url = download_url

@@ -5,3 +5,4 @@ XML_HEADERS = {
     "User-Agent": "Go-http-client/1.1",
 }
 SPREFIX = '.udown'
+CACHEPREFIX = '.ucache'
