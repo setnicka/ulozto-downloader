@@ -50,7 +50,6 @@ class TorRunner:
         c.write(config)
         c.close()
 
-        print("Start TOR")
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),
             init_msg_handler=TorRunner.get_tor_ready, close_output=True)
@@ -61,15 +60,15 @@ class TorRunner:
         self.ctrl.signal("RELOAD")
 
     def stop(self):
-        print("Terminating tor..")
+        if hasattr(self, "ctrl"):
+            print("Close tor controller")
+            self.ctrl.close()
+
         if hasattr(self, "process"):
+            print("Terminating tor..")
             self.process.terminate()
 
-        print("Remove tor data dir: " + self.ddir)
-
-        if os.path.exists(self.ddir):
-            shutil.rmtree(self.ddir, ignore_errors=True)
-
-    def __del__(self):
-        if hasattr(self, "ctrl"):
-            self.ctrl.close()
+        if hasattr(self, "ddir"):
+            print("Remove tor data dir: " + self.ddir)
+            if os.path.exists(self.ddir):
+                shutil.rmtree(self.ddir, ignore_errors=True)

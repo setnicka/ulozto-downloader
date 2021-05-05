@@ -60,6 +60,14 @@ class SegFileWriter:
         self.cur_pos += wrt
         self._write_stat(self.cur_pos)
 
+    def close(self):
+        if not self.sfp.closed:
+            self.sfp.flush()
+            self.sfp.close()
+        if not self.fp.closed:
+            self.fp.close()
+            self.fp.close()
+
 
 class SegFileLoader:
     def __init__(self, filename, size, parts):
