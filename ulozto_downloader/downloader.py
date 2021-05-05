@@ -2,12 +2,14 @@ import os
 import sys
 import multiprocessing as mp
 import time
+import math
 from datetime import timedelta
 from types import FunctionType
 import requests
 import colors
 
 from .page import Page
+from .segfile import SegFileWriter, SegFileLoader
 from . import utils, const
 
 
@@ -59,7 +61,7 @@ class Downloader:
         else:
             msg = f"Solve CAPTCHA dlink .."
 
-        #utils.print_captcha_status(msg, parts)
+        # utils.print_captcha_status(msg, parts)
         for url in self.captcha_download_links_generator:
             utils.print_captcha_status(msg, parts)
             self.download_url_queue.put(url)
@@ -72,15 +74,15 @@ class Downloader:
                 part (dict): Specification of the part to download
         """
 
-        id = part['id']
+        id = part.id
         utils.print_part_status(id, "Starting download")
 
-        part['started'] = time.time()
-        part['now_downloaded'] = 0
+        part.started = time.time()
+        part.now_downloaded = 0
 
         # Note the stream=True parameter
-        r = requests.get(part['download_url'], stream=True, allow_redirects=True, headers={
-            "Range": "bytes={}-{}".format(part['from'] + part['downloaded'], part['to'])
+        r = requests.get(part.download_url, stream=True, allow_redirects=True, headers={
+            "Range": "bytes={}-{}".format(part.pfrom + part.downloaded, part.pto)
         })
 
         if r.status_code == 429:
@@ -91,44 +93,47 @@ class Downloader:
 
         if r.status_code != 206 and r.status_code != 200:
             utils.print_part_status(id, colors.red(
-                f"Status code {r.status_code} returned"))
+                f"Status code {r.status_code} returned: {part.pfrom + part.downloaded}/{part.pto}"))
             sys.exit(1)
 
-        # TODO reimplement as multisegment write file class
-        with open(part['filename'], 'ab') as f:
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:  # filter out keep-alive new chunks
-                    f.write(chunk)
-                    part['downloaded'] += len(chunk)
-                    part['now_downloaded'] += len(chunk)
-                    elapsed = time.time() - part['started']
+        # reimplement as multisegment write file class
+        for chunk in r.iter_content(chunk_size=20480):
+            if chunk:  # filter out keep-alive new chunks
+                part.write(chunk)
+                part.now_downloaded += len(chunk)
+                elapsed = time.time() - part.started
 
-                    # Print status line
-                    # speed in bytes per second:
-                    speed = part['now_downloaded'] / elapsed if elapsed > 0 else 0
-                    # remaining time in seconds:
-                    remaining = (part['size'] - part['downloaded']) / speed if speed > 0 else 0
+                # Print status line downloaded and speed
+                # speed in bytes per second:
+                speed = part.now_downloaded / elapsed if elapsed > 0 else 0
+                # remaining time in seconds:
+                remaining = (part.size - part.downloaded) / speed if speed > 0 else 0
 
-                    utils.print_part_status(id, "{}%\t{:.2f}/{:.2f} MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
-                        round(part['downloaded'] / part['size'] * 100, 1),
-                        round(part['downloaded'] / 1024**2, 2),
-                        round(part['size'] / 1024**2, 2),
-                        round(speed / 1024, 2),
-                        str(timedelta(seconds=round(elapsed))),
-                        str(timedelta(seconds=round(remaining))),
-                    ))
+                utils.print_part_status(id, "{}%\t{:.2f}/{:.2f} MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
+                    round(part.downloaded / part.size * 100, 1),
+                    round(part.downloaded / 1024**2,
+                          2), round(part.size / 1024**2, 2),
+                    round(speed / 1024, 2),
+                    str(timedelta(seconds=round(elapsed))),
+                    str(timedelta(seconds=round(remaining))),
+                ))
+
         # download end status
-        part['elapsed'] = time.time() - part['started']
+        part.elapsed = time.time() - part.started
         utils.print_part_status(id, colors.green("Successfully downloaded {}{} MB in {} (speed {} KB/s)".format(
-            round(part['now_downloaded'] / 1024**2, 2),
-            "" if part['now_downloaded'] == part['downloaded'] else (
-                "/"+str(round(part['downloaded'] / 1024**2, 2))
+            round(part.now_downloaded / 1024**2, 2),
+            "" if part.now_downloaded == part.downloaded else (
+                "/"+str(round(part.downloaded / 1024**2, 2))
             ),
-            str(timedelta(seconds=round(part['elapsed']))),
-            round(part['now_downloaded'] / part['elapsed'] / 1024, 2) if part['elapsed'] > 0 else 0
+            str(timedelta(seconds=round(part.elapsed))),
+            round(part.now_downloaded / part.elapsed / 1024, 2) if part.elapsed > 0 else 0
         )))
-        # Free this (still valid) download URL for next use
-        download_url_queue.put(part['download_url'])
+
+        # close maybe use __del__ destructor
+        if not part.sfp.closed:
+            part.sfp.close()
+        if not part.fp.closed:
+            part.fp.close()
 
     def download(self, url, parts=10, target_dir=""):
         """Download file from Uloz.to using multiple parallel downloads.
@@ -155,6 +160,7 @@ class Downloader:
         print("Starting downloading for url '{}'".format(url))
         # 1.1 Get all needed information
         print("Getting info (filename, filesize, ...)")
+
         try:
             page = Page(self.tor, url)
             page.parse()
@@ -163,9 +169,9 @@ class Downloader:
             print(colors.red('Cannot download file: ' + str(e)))
             sys.exit(1)
 
-        # Do check
+        # Do check - only if .udown status file not exists get question
         output_filename = os.path.join(target_dir, page.filename)
-        if os.path.isfile(output_filename):
+        if os.path.isfile(output_filename) and not os.path.isfile(output_filename+const.SPREFIX):
             print(colors.yellow(
                 "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename)), end="")
             if input().strip() != 'y':
@@ -175,6 +181,7 @@ class Downloader:
             print("You are VERY lucky, this is QUICK direct download without CAPTCHA, downloading as 1 quick part :)")
             self.download_type = "fullspeed direct download (without CAPTCHA)"
             download_url = page.quickDownloadURL
+            self.captcha_solve_func = None
         if page.slowDownloadURL is not None:
             self.isLimited = True
             if page.isDirectDownload:
@@ -194,21 +201,14 @@ class Downloader:
 
         head = requests.head(download_url, allow_redirects=True)
         total_size = int(head.headers['Content-Length'])
-        part_size = (total_size + (parts - 1)) // parts
 
-        # 1.3 Prepare download info for parts
-        downloads = [
-            {
-                'id': i + 1,
-                'filename': "{0}.part{1:0{width}}of{2}".format(output_filename, i + 1, parts, width=len(str(parts))),
-                'file': output_filename,
-                # TODO one line / part [from/to/dosnloaded]
-                'stat_filename': f"{output_filename}.udown",
-                'from': part_size * i,
-                'to': min(part_size * (i + 1), total_size) - 1,
-                'downloaded': 0,
-            } for i in range(parts)
-        ]
+        try:
+            file_data = SegFileLoader(output_filename, total_size, parts)
+            downloads = file_data.make_writers()
+        except Exception as e:
+            print(colors.red(
+                f"Failed: Can not create '{output_filename}' error: {e} "))
+            sys.exit()
 
         # 2. Initialize cli status table interface
         # if windows, use 'cls', otherwise use 'clear'
@@ -221,14 +221,14 @@ class Downloader:
         print(colors.blue("Total size:\t") +
               colors.bold("{}MB".format(round(total_size / 1024**2, 2))))
         print(colors.blue("Parts:\t\t") +
-              "{} x {}MB".format(parts, round(part_size / 1024**2, 2)))
+              "{} x {}MB".format(file_data.parts, round(file_data.part_size / 1024**2, 2)))
 
         # fill placeholder before Download._download_part start() started
         for part in downloads:
             if page.isDirectDownload:
-                utils.print_part_status(part['id'], "Waiting for direct link...")
+                utils.print_part_status(part.id, "Waiting for direct link...")
             else:
-                utils.print_part_status(part['id'], "Waiting for CAPTCHA...")
+                utils.print_part_status(part.id, "Waiting for CAPTCHA...")
 
         # Prepare queue for recycling download URLs
         self.download_url_queue = mp.Queue(maxsize=0)
@@ -244,28 +244,21 @@ class Downloader:
             )
             self.captcha_process.start()
 
-        # 3. Start all downloads
-        # TODO
+        # 3. Start all downloads fill self.processes
         for part in downloads:
             if self.terminating:
                 return
-            id = part['id']
-            part['size'] = part['to'] - part['from'] + 1
+            id = part.id
 
-            # Test if the file isn't downloaded from previous download. If so, try to continue
-            if os.path.isfile(part['filename']):
-                # TODO instead of get filesize - open and parse part['stat_filename'] line
-                part['downloaded'] = os.path.getsize(part['filename'])
-                previously_downloaded += part['downloaded']
-                if part['downloaded'] == part['size']:
-                    utils.print_part_status(id, colors.green(
-                        "Already downloaded from previous run, skipping"))
-                    continue
+            if part.downloaded == part.size:
+                utils.print_part_status(id, colors.green(
+                    "Already downloaded from previous run, skipping"))
+                continue
 
             if self.isLimited:
-                part['download_url'] = self.download_url_queue.get()
+                part.download_url = self.download_url_queue.get()
             else:
-                part['download_url'] = download_url
+                part.download_url = download_url
 
             # Start download process in another process (parallel):
             p = mp.Process(target=Downloader._download_part,
@@ -290,44 +283,27 @@ class Downloader:
             if p.exitcode != 0:
                 success = False
 
-        # Check all downloads
-        checkError = False
-        for part in downloads:
-            if not os.path.isfile(part['filename']):
-                utils.print_part_status(part['id'], colors.red(
-                    f"ERROR: Part '{part['filename']}' missing on disk"
-                ))
-                checkError = True
-                continue
-            size = os.path.getsize(part['filename'])
-            if size != part['size']:
-                utils.print_part_status(part['id'], colors.red(
-                    f"ERROR: Part '{part['filename']}' has wrong size {size} bytes (instead of {part['size']} bytes)"
-                ))
-                os.remove(part['filename'])
-                checkError = True
+        # 4.a stop stem tor if is limited download
+        if self.isLimited:
+            self.tor.stop()
 
+        # clear cli
         sys.stdout.write("\033[{};{}H".format(
             parts + const.CLI_STATUS_STARTLINE + 2, 0))
         sys.stdout.write("\033[K")
         sys.stdout.write("\033[?25h")  # show cursor
         self.cli_initialized = False
+
+        # result end status
         if not success:
             print(colors.red("Failure of one or more downloads, exiting"))
             sys.exit(1)
-        if checkError:
-            print(colors.red("Wrong sized parts deleted, please restart the download"))
-            sys.exit(1)
 
-        # 4.a stop stem tor if is limited download
-        if self.isLimited:
-            self.tor.stop()
-        # 5. Concatenate all parts into final file and remove partial files
         elapsed = time.time() - started
         # speed in bytes per second:
         speed = (total_size - previously_downloaded) / elapsed if elapsed > 0 else 0
         print(colors.green("All downloads finished"))
-        print("Stats: Downloaded {}{} MB in {} (average speed {} MB/s), merging files...".format(
+        print("Stats: Downloaded {}{} MB in {} (average speed {} MB/s)".format(
             round((total_size - previously_downloaded) / 1024**2, 2),
             "" if previously_downloaded == 0 else (
                 "/"+str(round(total_size / 1024**2, 2))
@@ -335,12 +311,5 @@ class Downloader:
             str(timedelta(seconds=round(elapsed))),
             round(speed / 1024**2, 2)
         ))
-        with open(output_filename, "wb") as outfile:
-            for part in downloads:
-                with open(part['filename'], "rb") as infile:
-                    outfile.write(infile.read())
-
-        for part in downloads:
-            os.remove(part['filename'])
-
-        print(colors.green("Parts merged into output file '{}'".format(output_filename)))
+        # delete stat file
+        os.remove(file_data.filename + const.SPREFIX)
