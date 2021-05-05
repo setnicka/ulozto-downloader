@@ -1,11 +1,13 @@
 import re
 from urllib.parse import urlparse
+from os import path
 import requests
 import logging
 import ssl
 import colors
 
-from .const import XML_HEADERS
+from .const import XML_HEADERS, CACHEPREFIX
+from .linkcache import LinkCache
 
 from requests.sessions import RequestsCookieJar
 
@@ -34,6 +36,7 @@ class Page:
     quickDownloadURL: str
     captchaURL: str
     isDirectDownload: bool
+    lastCachedIdx: int
 
     def __init__(self, tor, url):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
@@ -196,20 +199,32 @@ class Page:
             Returns:
                 str: URL for downloading the file
         """
+        # cache empty
+        self.cache_empty = False
+        self.lastCachedIdx = 0
 
-        # TODO before get new download links use cached if is 1h >= before expiration
-        # ****** link cache and reuse ******
-        # TODO cache end
+        if not path.exists(self.filename + CACHEPREFIX):
+            self.cache_empty = True
 
-        # start tor
+        while not self.cache_empty:
+            cached_link = LinkCache(
+                self.filename + CACHEPREFIX).get(self.lastCachedIdx)
+            if cached_link:
+                self.lastCachedIdx += 1
+                yield cached_link
+            else:
+                self.cache_empty = True
+                break
+
+        print("Start TOR")
         self.tor.start()
-
         proxies = {
             'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
             'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
         }
 
-        while True:
+        while self.cache_empty:
+
             # reload tor after 1. use or all except badCatcha case
             noreload = False
             if self.stats["all"] > 0 or noreload:
@@ -268,7 +283,10 @@ class Page:
                     # generate result or break
                     result = self._link_validation_stat(resp, print_func)
                     if result[0]:
-                        yield resp.json()["slowDownloadLink"]
+                        dlink = resp.json()["slowDownloadLink"]
+                        # cache link here
+                        LinkCache(self.filename + CACHEPREFIX).add(dlink)
+                        yield dlink
                     else:
                         # for noreload (bad captcha no need reload TOR)
                         if result[1]:
