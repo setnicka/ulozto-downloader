@@ -102,15 +102,6 @@ class Page:
 
         download_found = False
 
-        # Some files may be download without CAPTCHA, there is special URL on the parsed page:
-        # a) <a ... href="/slowDownload/E7jJsmR2ix73">...</a>
-        # self.slowDownloadURL = parse_single(
-        #     self.body, r'<div class="(download-slow)"')
-
-        # if self.slowDownloadURL:
-        #     download_found = True
-        #     self.slowDownloadURL = self.baseURL + self.slowDownloadURL
-        # b) <a ... href="/quickDownload/E7jJsmR2ix73">...</a>
         self.quickDownloadURL = parse_single(
             self.body, r'href="(/quickDownload/[^"]*)"')
         if self.quickDownloadURL:
@@ -155,12 +146,14 @@ class Page:
         print_func(colors.red(f"Network error get new TOR connection: {err}"))
         self.stats["net"] += 1
 
-    def _link_validation_stat(self, linkdata, print_func):
+    def _link_validation_stat(self, resp, print_func):
+        linkdata = resp.text
         self.stats["all"] += 1
         ok = False
         noreload = False
 
         # search errors..
+        good_str = "afterDownloadUrl"
         blk_str = 'blocked'
         lim_str = 'limit-exceeded'
         bcp_str = "formErrorContent"
@@ -170,22 +163,22 @@ class Page:
         blk_msg = "Blocked TOR exit IP.. get new TOR session"
         bcp_msg = "Bad captcha.. Try again using same IP"
 
-        if bcp_str in linkdata:
-            self.stats["bad"] += 1
-            print_func(colors.red(bcp_msg))
-            noreload = True
-        elif "redirectDialogContent" in linkdata and lim_str in linkdata["redirectDialogContent"]:
+        if good_str in linkdata:
+            self.stats["ok"] += 1
+            ok = True
+        elif lim_str in linkdata:
             self.stats["lim"] += 1
             if not self.isDirectDownload:
                 print_func(colors.red(lim_msg))
-        elif "slowDownloadLink" in linkdata:
-            if blk_str in linkdata["slowDownloadLink"]:
-                self.stats["block"] += 1
-                if not self.isDirectDownload:
-                    print_func(colors.red(blk_msg))
-            else:
-                self.stats["ok"] += 1
-                ok = True
+        elif blk_str in linkdata:
+            self.stats["block"] += 1
+            if not self.isDirectDownload:
+                print_func(colors.red(blk_msg))
+        elif bcp_str in linkdata:
+            self.stats["bad"] += 1
+            print_func(colors.red(bcp_msg))
+            noreload = True
+
         return (ok, noreload)
 
     def _captcha_send_print_stat(self, answ, print_func):
@@ -203,6 +196,10 @@ class Page:
             Returns:
                 str: URL for downloading the file
         """
+
+        # TODO before get new download links use cached if is 1h >= before expiration
+        # ****** link cache and reuse ******
+        # TODO cache end
 
         # start tor
         self.tor.start()
@@ -229,14 +226,13 @@ class Page:
                             "_do": "pornDisclaimer-submit",
                         })
 
-                    r_json = requests.Response()
+                    resp = requests.Response()
 
                     if self.isDirectDownload:
                         print_func(
                             f"New TOR session for GET downlink {self._stat_fmt()}")
-                        r = s.get(self.captchaURL,
-                                  headers=XML_HEADERS, proxies=proxies)
-                        r_json = r.json()
+                        resp = s.get(self.captchaURL,
+                                     headers=XML_HEADERS, proxies=proxies)
                     else:
                         print_func(
                             f"New TOR session for POST captcha {self._stat_fmt()}")
@@ -265,15 +261,14 @@ class Page:
 
                         self._captcha_send_print_stat(
                             captcha_answer, print_func)
-                        r = s.post(self.captchaURL, data=captcha_data,
-                                   headers=XML_HEADERS, proxies=proxies)
-                        r_json = r.json()
+                        resp = s.post(self.captchaURL, data=captcha_data,
+                                      headers=XML_HEADERS, proxies=proxies)
 
                     s.close()  # close connections
                     # generate result or break
-                    result = self._link_validation_stat(r_json, print_func)
+                    result = self._link_validation_stat(resp, print_func)
                     if result[0]:
-                        yield r_json["slowDownloadLink"]
+                        yield resp.json()["slowDownloadLink"]
                     else:
                         # for noreload (bad captcha no need reload TOR)
                         if result[1]:
