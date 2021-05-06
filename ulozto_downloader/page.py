@@ -37,8 +37,10 @@ class Page:
     captchaURL: str
     isDirectDownload: bool
     lastCachedIdx: int
+    numTorLinks: int
+    alreadyDownloaded: int
 
-    def __init__(self, tor, url):
+    def __init__(self, tor, url, parts):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
@@ -52,6 +54,7 @@ class Page:
                       "lim": 0, "block": 0, "net": 0}  # statistics
         self.tor = tor
         self.url = url
+        self.parts = parts
         parsed_url = urlparse(url)
         self.pagename = parsed_url.hostname.capitalize()
 
@@ -199,28 +202,34 @@ class Page:
         # cache empty
         self.cache_empty = False
         self.lastCachedIdx = 0
+        self.numTorLinks = 0
+        self.torRunning = False
+        self.torDdir = ""
 
         if not path.exists(self.filename + CACHEPREFIX):
             self.cache_empty = True
 
-        while not self.cache_empty:
+        while not self.cache_empty and self.parts > self.numTorLinks:
             cached_link = LinkCache(
                 self.filename + CACHEPREFIX).get(self.lastCachedIdx)
             if cached_link:
                 self.lastCachedIdx += 1
+                self.numTorLinks += 1
                 yield cached_link
             else:
                 self.cache_empty = True
                 break
 
-        print("Start TOR")
-        self.tor.start()
-        proxies = {
-            'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
-            'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
-        }
+        while self.cache_empty and self.parts > (self.numTorLinks):
+            if not self.torRunning:
+                print("Starting TOR...")
+                self.tor.start()
+                self.torRunning = True
 
-        while self.cache_empty:
+            proxies = {
+                'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
+                'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
+            }
 
             # reload tor after 1. use or all except badCatcha case
             noreload = False
@@ -281,6 +290,7 @@ class Page:
                         dlink = resp.json()["slowDownloadLink"]
                         # cache link here
                         LinkCache(self.filename + CACHEPREFIX).add(dlink)
+                        self.numTorLinks += 1
                         yield dlink
                     else:
                         # for noreload (bad captcha no need reload TOR)
@@ -297,3 +307,5 @@ class Page:
             except requests.exceptions.ReadTimeout:
                 self._error_net_stat(
                     "ReadTimeout error, try new TOR session.", print_func)
+
+        # self.tor.stop()
