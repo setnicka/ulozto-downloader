@@ -10,6 +10,11 @@ import re
 
 class TorRunner:
     """Running stem tor instance"""
+    ddir = ""
+
+    def __init__(self):
+        uid = str(uuid.uuid4())
+        self.ddir = f"tor_data_dir_{uid}"
 
     def _port_not_use(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -32,24 +37,21 @@ class TorRunner:
         p = re.compile(r'Bootstrapped \d+%')
         msg = re.findall(p, line)
         if len(msg) > 0:
-            print(f"Tor: {msg[0]}\r", end="")  # log
+            print(f"\rTor: {msg[0]}", end="")  # log
         if "Bootstrapped 100%" in line:
             print(f"\rTOR is ready, download links started")
 
     def start(self):
-        print("Make datadir")
-        self.ddir = "tor_data_" + str(uuid.uuid4())
         os.mkdir(self.ddir)
-        print("Write torrc")
         self.tor_ports = self._two_free_ports(41000)
         config = "SocksPort " + str(self.tor_ports[0]) + "\n"
         config += "ControlPort " + str(self.tor_ports[1]) + "\n"
         config += "DataDirectory " + self.ddir + "\n"
         config += "CookieAuthentication 1\n"
-        c = open(os.path.join(self.ddir, "torrc"), "w")
+        tcpath = os.path.join(self.ddir, "torrc")
+        c = open(tcpath, "w")
         c.write(config)
         c.close()
-
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),
             init_msg_handler=TorRunner.get_tor_ready, close_output=True)
@@ -60,15 +62,13 @@ class TorRunner:
         self.ctrl.signal("RELOAD")
 
     def stop(self):
-        if hasattr(self, "ctrl"):
-            print("Close tor controller")
-            self.ctrl.close()
-
         if hasattr(self, "process"):
             print("Terminating tor..")
             self.process.terminate()
 
-        if hasattr(self, "ddir"):
-            print("Remove tor data dir: " + self.ddir)
-            if os.path.exists(self.ddir):
-                shutil.rmtree(self.ddir, ignore_errors=True)
+        if os.path.exists(self.ddir):
+            shutil.rmtree(self.ddir, ignore_errors=True)
+            print(f"Removed tor data dir: {self.ddir}")
+
+    def __del__(self):
+        self.stop()

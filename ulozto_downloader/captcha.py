@@ -18,7 +18,8 @@ def tkinter_user_prompt(img_url, print_func):
     root = tk.Tk()
     root.focus_force()
     root.title("Opiš kód z obrázku")
-    root.geometry("300x140")  # use width x height + x_offset + y_offset (no spaces!)
+    # use width x height + x_offset + y_offset (no spaces!)
+    root.geometry("300x140")
 
     def disable_event():
         pass

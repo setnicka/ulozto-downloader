@@ -3,6 +3,7 @@ import sys
 import multiprocessing as mp
 import time
 import math
+import shutil
 from datetime import timedelta
 from .linkcache import LinkCache
 from .const import CACHEPREFIX
@@ -44,11 +45,10 @@ class Downloader:
         for p in self.processes:
             p.terminate()
         print('Download terminated.')
-        if self.isLimited:
-            self.tor.stop()
-            print('TOR end.')
 
-        return
+        # if self.isLimited:
+        #    self.tor.stop()
+        #    print('TOR end.')
 
     def _captcha_print_func_wrapper(self, text):
         if not self.cli_initialized:
@@ -162,7 +162,7 @@ class Downloader:
         print("Getting info (filename, filesize, ...)")
 
         try:
-            page = Page(self.tor, url)
+            page = Page(self.tor, url, parts)
             page.parse()
 
         except RuntimeError as e:
@@ -208,6 +208,7 @@ class Downloader:
         except Exception as e:
             print(colors.red(
                 f"Failed: Can not create '{output_filename}' error: {e} "))
+            self.terminate()
             sys.exit()
 
         # 2. Initialize cli status table interface
@@ -244,6 +245,7 @@ class Downloader:
                 target=self._captcha_breaker, args=(page, self.parts))
 
         cpb_started = False
+        page.alreadyDownloaded = 0
         # 3. Start all downloads fill self.processes
         for part in downloads:
             if self.terminating:
@@ -253,6 +255,7 @@ class Downloader:
             if part.downloaded == part.size:
                 utils.print_part_status(id, colors.green(
                     "Already downloaded from previous run, skipping"))
+                page.alreadyDownloaded += 1
                 continue
 
             if self.isLimited:
@@ -285,10 +288,6 @@ class Downloader:
             p.join()
             if p.exitcode != 0:
                 success = False
-
-        # 4.a stop stem tor if is limited download
-        if self.isLimited:
-            self.tor.stop()
 
         # clear cli
         sys.stdout.write("\033[{};{}H".format(
