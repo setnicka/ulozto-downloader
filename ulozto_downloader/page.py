@@ -153,7 +153,7 @@ class Page:
         linkdata = resp.text
         self.stats["all"] += 1
         ok = False
-        noreload = False
+        reload = True
 
         # search errors..
         good_str = "afterDownloadUrl"
@@ -180,9 +180,9 @@ class Page:
         elif bcp_str in linkdata:
             self.stats["bad"] += 1
             print_func(colors.red(bcp_msg))
-            noreload = True
+            reload = False  # bad captcha same IP again
 
-        return (ok, noreload)
+        return (ok, reload)
 
     def _captcha_send_print_stat(self, answ, print_func):
         print_func(f"Send CAPTCHA:  '{answ}' {self._stat_fmt()}")
@@ -232,11 +232,9 @@ class Page:
             }
 
             # reload tor after 1. use or all except badCatcha case
-            noreload = False
-            if self.stats["all"] > 0 or noreload:
+            reload = False
+            if self.stats["all"] > 0 or reload:
                 self.tor.reload()
-            else:
-                noreload = False
 
             try:
                 while True:
@@ -283,19 +281,20 @@ class Page:
                         resp = s.post(self.captchaURL, data=captcha_data,
                                       headers=XML_HEADERS, proxies=proxies)
 
-                    s.close()  # close connections
+                    # s.close()  # close connections
                     # generate result or break
                     result = self._link_validation_stat(resp, print_func)
+                    # for noreload (bad captcha no need reload TOR)
+                    reload = result[1]
                     if result[0]:
                         dlink = resp.json()["slowDownloadLink"]
                         # cache link here
                         LinkCache(self.filename + CACHEPREFIX).add(dlink)
                         self.numTorLinks += 1
+                        # need reload TOR here because yield
+                        self.tor.reload()
                         yield dlink
                     else:
-                        # for noreload (bad captcha no need reload TOR)
-                        if result[1]:
-                            noreload = True
                         break
 
             except requests.exceptions.ConnectionError:
