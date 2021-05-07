@@ -38,6 +38,9 @@ $ pip3 install --upgrade ulozto-downloader
 Toto instaluje všechny dependence **vyjma TensorFlow Lite** pro automatické
 louskání CAPTCHA kódů (protože repozitář PyPI zakazuje přímé URL dependence).
 
+### Instalace TORu
+Program vyžaduje spustitelný tor, protože používá stem a očekává ho v $PATH.
+
 ### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
 
 Na stránce [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python) si
@@ -65,7 +68,7 @@ Pro volbu automatického čtení CAPTCHA kódů slouží přepínač `--auto-cap
 pro volbu počtu částí slouží přepínač `--parts N`.
 
 ```shell
-$ ulozto-downloader --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
+$ ulozto-downloader.py --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
 ```
 
 ![Ukázka stahování](https://raw.githubusercontent.com/setnicka/ulozto-downloader/master/example-screenshot.png)

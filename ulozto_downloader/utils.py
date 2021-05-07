@@ -11,8 +11,10 @@ def _print(text, x=0, y=0):
 
 
 def print_part_status(id, text):
-    _print(colors.blue(f"[Part {id}]") + f"\t{text}", y=(id + const.CLI_STATUS_STARTLINE))
+    _print(colors.blue(f"[Part {id}]") + f"\t{text}",
+           y=(id + const.CLI_STATUS_STARTLINE))
 
 
 def print_captcha_status(text, parts):
-    _print(colors.blue("[CAPTCHA solve]") + f"\t{text}", y=(parts + 2 + const.CLI_STATUS_STARTLINE))
+    _print(colors.blue("[Link solve]") +
+           f"\t{text}", y=(parts + 2 + const.CLI_STATUS_STARTLINE))
