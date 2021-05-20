@@ -40,10 +40,11 @@ class Downloader:
         if hasattr(self, "captcha_process") and self.captcha_process is not None:
             self.captcha_process.terminate()
         print('Terminate download processes')
-        for p in self.processes:
-            p.terminate()
+        if hasattr(self, "processes") and self.processes is not None:
+            for p in self.processes:
+                p.terminate()
         print('Download terminated.')
-        if self.monitor is not None:
+        if hasattr(self, "monitor") and self.monitor is not None:
             self.monitor.terminate()
         print('End download monitor')
 
