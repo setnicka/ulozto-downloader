@@ -76,7 +76,7 @@ pro volbu počtu částí slouží přepínač `--parts N`.
 $ uld.py --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
 ```
 
-![Ukázka stahování](https://raw.githubusercontent.com/setnicka/ulozto-downloader/master/example-screenshot.png)
+![Ukázka stahování](https://raw.githubusercontent.com/vladodriver/ulozto-downloader/master/example-screenshot.png)
 
 Při využití automatického louskání doporučuji využít velký počet částí, klidně
 50 (spustíte `ulozto-downloader` a necháte ho pracovat, on si jednou za minutu
