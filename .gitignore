@@ -1,8 +1,18 @@
-__pycache__/
-*.py[cod]
-dist/
-build/
-model.tflite
-model.tflite.tmp
-.idea/
-venv/
+dist/**
+build/**
+uld.egg-info/**
+uldlib/__pycache__/**
+parser.py
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+.ionide
