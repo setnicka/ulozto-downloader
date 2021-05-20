@@ -25,7 +25,10 @@ s webovým rozhraním.
     minutu, ale stejný link je možné používat po dostahování původní části
     opakovaně pro stahování dalších částí
 * Umí navazovat přerušená stahování (pokud se zachová stejný počet částí)
-* Konzolový status panel
+* Nyní stahuje přímo do jednoho souboru, místo dělení na části a potom spojování
+* Konzolový status panel se statistikou úspěšnosti při záískávání linků
+* Celkový průběh staženo / okamžitá rychlost stahování ve druhém řádku status panelu (save progress monitor)
+* Cache soubor download linků pro pokračování nebo opětovné stažení, po restartu se bez nového získávání download linků rovnou stahuje a nové download linky se získávají jen když jich není v cache souboru dostatek. Vytváři málý textový soubor **.ucache** jenž je možné použít znovu a stahovat maximální rychlostí ihned bez získávání linků. Tento soubor má malou velikost a lze ho např. sdílet. U velkých souborů (100ky MB) je platnost linku 48 hodin.
 
 ## Instalace
 
