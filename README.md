@@ -25,7 +25,14 @@ s webovým rozhraním.
     minutu, ale stejný link je možné používat po dostahování původní části
     opakovaně pro stahování dalších částí
 * Umí navazovat přerušená stahování (pokud se zachová stejný počet částí)
-* Konzolový status panel
+* Nyní stahuje přímo do jednoho souboru, místo dělení na části a potom spojování
+* Konzolový status panel se statistikou úspěšnosti při získávání linků
+* Celkový průběh staženo / okamžitá rychlost stahování ve druhém řádku status panelu (save progress monitor)
+* Cache soubor download linků pro pokračování nebo opětovné stažení, po restartu se bez nového
+  získávání download linků rovnou stahuje a nové download linky se získávají jen když jich není
+  v cache souboru dostatek. Vytváří malý textový soubor `.ucache` jenž je možné použít znovu
+  a stahovat maximální rychlostí ihned bez získávání linků. Tento soubor má malou velikost
+  a lze ho např. sdílet. U velkých souborů (100ky MB) je platnost linku 48 hodin.
 
 ## Instalace
 
@@ -57,7 +64,9 @@ Na linuxu je mozné pro novější **python 3.9.x** zkompilovat **tflite_runtime
 ```shell
 pip install tflite_runtime-2.6.0-cp39-cp39-linux_x86_64.whl
 ```
-Tento soubor pro python 3.9 a linux x86-64 je nyní také součástí repozitáře.
+Tento soubor pro python 3.9, linux x86-64 a GLIBC_2.33 je nyní také součástí
+repozitáře. Pokud potřebujete starší verzi GLIBC (například pro Debian), tak
+můžete zkusit následovat postup v <https://github.com/google-coral/pycoral/issues/6>
 
 ### Instalace Tkinter (ruční opisování CAPTCHA)
 
