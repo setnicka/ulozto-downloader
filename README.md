@@ -32,7 +32,7 @@ s webovým rozhraním.
 Nejjednodušší je využít verzi uveřejněnou na [PyPi](https://pypi.org/project/ulozto-downloader/):
 
 ```shell
-$ pip3 install --upgrade ulozto-downloader
+$ pip3 install --upgrade uld
 ```
 
 Toto instaluje všechny dependence **vyjma TensorFlow Lite** pro automatické
@@ -52,6 +52,11 @@ $ pip3 install <URL>
 # Například tedy pro Python 3.8 na x86-64 Linuxu:
 $ pip3 install https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp38-cp38-linux_x86_64.whl
 ```
+Na linuxu je mozné pro novější **python 3.9.x** zkompilovat **tflite_runtime-2.6.0-cp39-cp39-linux_x86_64.whl** a pak nainstalovat pomocí:
+```shell
+pip install tflite_runtime-2.6.0-cp39-cp39-linux_x86_64.whl
+```
+Tento soubor pro python 3.9 a linux x86-64 je nyní také součástí repozitáře.
 
 ### Instalace Tkinter (ruční opisování CAPTCHA)
 
@@ -68,7 +73,7 @@ Pro volbu automatického čtení CAPTCHA kódů slouží přepínač `--auto-cap
 pro volbu počtu částí slouží přepínač `--parts N`.
 
 ```shell
-$ ulozto-downloader.py --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
+$ uld.py --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
 ```
 
 ![Ukázka stahování](https://raw.githubusercontent.com/setnicka/ulozto-downloader/master/example-screenshot.png)

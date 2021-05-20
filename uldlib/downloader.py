@@ -1,20 +1,20 @@
+from .const import CLI_STATUS_STARTLINE, DOWNPOSTFIX, DOWN_CHUNK_SIZE
+from . import utils
+from .torrunner import TorRunner
+from .segfile import SegFileWriter, SegFileLoader, SegFileMonitor
+from .page import Page
+import colors
+import requests
 import os
 import sys
+import signal
 import multiprocessing as mp
 import time
 import math
 import shutil
 from datetime import timedelta
-from .linkcache import LinkCache
-from .const import CACHEPREFIX
 from types import FunctionType
-
-import requests
-import colors
-
-from .page import Page
-from .segfile import SegFileWriter, SegFileLoader
-from . import utils, const
+from .const import DOWNPOSTFIX
 
 
 class Downloader:
@@ -22,33 +22,34 @@ class Downloader:
     terminating: bool
     processes: slice
     captcha_process: mp.Process
+    montoror: mp.Process
     captcha_solve_func: FunctionType
     download_url_queue: mp.Queue
     parts: int
 
-    def __init__(self, captcha_solve_func, tor):
+    def __init__(self, captcha_solve_func):
         self.captcha_solve_func = captcha_solve_func
-        self.tor = tor
         self.cli_initialized = False
+        self.monitor = None
 
     def terminate(self):
         self.terminating = True
         if self.cli_initialized:
             sys.stdout.write("\033[{};{}H".format(
-                self.parts + const.CLI_STATUS_STARTLINE + 2, 0))
+                self.parts + CLI_STATUS_STARTLINE + 2, 0))
             sys.stdout.write("\033[?25h")  # show cursor
             self.cli_initialized = False
-        print()
+
         print('Terminating download. Please wait for stopping all processes.')
-        if self.captcha_process is not None:
+        if hasattr(self, "captcha_process") and self.captcha_process is not None:
             self.captcha_process.terminate()
+        print('Terminate download processes')
         for p in self.processes:
             p.terminate()
         print('Download terminated.')
-
-        # if self.isLimited:
-        #    self.tor.stop()
-        #    print('TOR end.')
+        if self.monitor is not None:
+            self.monitor.terminate()
+        print('End download monitor')
 
     def _captcha_print_func_wrapper(self, text):
         if not self.cli_initialized:
@@ -70,6 +71,24 @@ class Downloader:
             self.download_url_queue.put(url)
 
     @staticmethod
+    def _save_progress(filename, parts, size, interval_sec):
+
+        m = SegFileMonitor(filename, utils.print_saved_status, interval_sec)
+
+        while True:
+            s_start = m.size()
+            time.sleep(interval_sec)
+            s_end = m.size()
+            int_size = s_end - s_start
+            bps = int_size / interval_sec
+            proc = s_end / size * 100
+
+            utils.print_saved_status(
+                f"{round(proc, 2):.2f} % -> "
+                f"{round((s_end / 1024 ** 2), 2):.2f} MB -> "
+                f"{round((bps / 1024 ** 2), 2):.2f} MB/sec", parts)
+
+    @staticmethod
     def _download_part(part, download_url_queue):
         """Download given part of the download.
 
@@ -85,7 +104,8 @@ class Downloader:
 
         # Note the stream=True parameter
         r = requests.get(part.download_url, stream=True, allow_redirects=True, headers={
-            "Range": "bytes={}-{}".format(part.pfrom + part.downloaded, part.pto)
+            "Range": "bytes={}-{}".format(part.pfrom + part.downloaded, part.pto),
+            "Connection": "close",
         })
 
         if r.status_code == 429:
@@ -100,7 +120,7 @@ class Downloader:
             sys.exit(1)
 
         # reimplement as multisegment write file class
-        for chunk in r.iter_content(chunk_size=20480):
+        for chunk in r.iter_content(chunk_size=DOWN_CHUNK_SIZE):
             if chunk:  # filter out keep-alive new chunks
                 part.write(chunk)
                 part.now_downloaded += len(chunk)
@@ -112,8 +132,8 @@ class Downloader:
                 remaining = (part.size - part.downloaded) / \
                     speed if speed > 0 else 0  # in seconds
 
-                utils.print_part_status(id, "{}%\t{:.2f}/{:.2f} MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
-                    round(part.downloaded / part.size * 100, 1),
+                utils.print_part_status(id, "{:.2f}%\t{:.2f}/{:.2f} MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
+                    round(part.downloaded / part.size * 100, 2),
                     round(part.downloaded / 1024**2,
                           2), round(part.size / 1024**2, 2),
                     round(speed / 1024, 2),
@@ -122,6 +142,7 @@ class Downloader:
                 ))
 
         # download end status
+        r.close()
         part.elapsed = time.time() - part.started
         utils.print_part_status(id, colors.green("Successfully downloaded {}{} MB in {} (speed {} KB/s)".format(
             round(part.now_downloaded / 1024**2, 2),
@@ -132,14 +153,15 @@ class Downloader:
                   1024, 2) if part.elapsed > 0 else 0
         )))
 
-        # close files
+        # close part file files
         part.close()
+
+        # reuse download link if need
+        download_url_queue.put(part.download_url)
 
     def download(self, url, parts=10, target_dir=""):
         """Download file from Uloz.to using multiple parallel downloads.
-
             Arguments:
-                tor (TorRunner): instance of TorRuner() class
                 url (str): URL of the Uloz.to file to download
                 parts (int): Number of parts that will be downloaded in parallel (default: 10)
                 target_dir (str): Directory where the download should be saved (default: current directory)
@@ -162,7 +184,8 @@ class Downloader:
         print("Getting info (filename, filesize, ...)")
 
         try:
-            page = Page(self.tor, url, parts)
+            tor = TorRunner()
+            page = Page(url, target_dir, parts, tor)
             page.parse()
 
         except RuntimeError as e:
@@ -171,7 +194,7 @@ class Downloader:
 
         # Do check - only if .udown status file not exists get question
         output_filename = os.path.join(target_dir, page.filename)
-        if os.path.isfile(output_filename) and not os.path.isfile(output_filename+const.SPREFIX):
+        if os.path.isfile(output_filename) and not os.path.isfile(output_filename+DOWNPOSTFIX):
             print(colors.yellow(
                 "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename)), end="")
             if input().strip() != 'y':
@@ -182,6 +205,7 @@ class Downloader:
             self.download_type = "fullspeed direct download (without CAPTCHA)"
             download_url = page.quickDownloadURL
             self.captcha_solve_func = None
+
         if page.slowDownloadURL is not None:
             self.isLimited = True
             if page.isDirectDownload:
@@ -216,15 +240,15 @@ class Downloader:
         os.system('cls' if os.name == 'nt' else 'clear')
         sys.stdout.write("\033[?25l")  # hide cursor
         self.cli_initialized = True
+        page.cli_initialized = True  # for tor in Page
         print(colors.blue("File:\t\t") + colors.bold(page.filename))
         print(colors.blue("URL:\t\t") + page.url)
         print(colors.blue("Download type:\t") + self.download_type)
-        print(colors.blue("Total size:\t") +
-              colors.bold("{}MB".format(round(total_size / 1024**2, 2))))
-        print(colors.blue("Parts:\t\t") +
-              "{} x {}MB".format(file_data.parts, round(file_data.part_size / 1024**2, 2)))
+        print(colors.blue(f"Size / parts: \t") +
+              colors.bold(f"{round(total_size / 1024**2, 2)}MB => " +
+              f"{file_data.parts} x {round(file_data.part_size / 1024**2, 2)}MB"))
 
-        # fill placeholder before Download._download_part start() started
+        # fill placeholder before download started
         for part in downloads:
             if page.isDirectDownload:
                 utils.print_part_status(
@@ -246,6 +270,12 @@ class Downloader:
 
         cpb_started = False
         page.alreadyDownloaded = 0
+
+        # save status monitor
+        self.monitor = mp.Process(target=Downloader._save_progress, args=(
+            file_data.filename, file_data.parts, file_data.size, 1/3))
+        self.monitor.start()
+
         # 3. Start all downloads fill self.processes
         for part in downloads:
             if self.terminating:
@@ -291,7 +321,7 @@ class Downloader:
 
         # clear cli
         sys.stdout.write("\033[{};{}H".format(
-            parts + const.CLI_STATUS_STARTLINE + 2, 0))
+            parts + CLI_STATUS_STARTLINE + 2, 0))
         sys.stdout.write("\033[K")
         sys.stdout.write("\033[?25h")  # show cursor
         self.cli_initialized = False
@@ -312,5 +342,8 @@ class Downloader:
             str(timedelta(seconds=round(elapsed))),
             round(speed / 1024**2, 2)
         ))
-        # delete stat file
-        os.remove(file_data.filename + const.SPREFIX)
+        # remove resume .udown file
+        udown_file = output_filename + DOWNPOSTFIX
+        if os.path.exists(udown_file):
+            print(f"Delete file: {udown_file}")
+            os.remove(udown_file)

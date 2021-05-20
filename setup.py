@@ -1,20 +1,19 @@
-#!/usr/bin/python3
-
+#!/usr/bin/env pyrhon3
 from distutils.core import setup
 import setuptools  # noqa
 
-from ulozto_downloader import __version__
+from uldlib import __version__
 
 setup(
-    name='ulozto-downloader',
+    name='uld',
     version=__version__,
     license='MIT',
     description='Uloz.to quick multiple sessions downloader.',
-    # faile README.md failed (utf8) when pip install on win10 :(
     long_description="Uloz.to quick multiple sessions downloader.",
     author='Jiří Setnička and Vlado Driver',
-    author_email='setnicka@seznam.cz',
-    url='https://github.com/setnicka/ulozto-downloader',
+    author_email='vladodriver@gmail.com',
+    url='https://gitlab.com/vladodriver/uld',
+    package_data={'': ['model.tflite']},
     install_requires=[
         'requests',
         'Pillow',
@@ -29,5 +28,5 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
     ],
-    scripts=['ulozto-downloader.py']
+    scripts=['uld.py'],
 )

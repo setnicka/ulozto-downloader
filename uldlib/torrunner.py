@@ -2,6 +2,7 @@ import socket
 import stem.process
 from stem import Signal
 from stem.control import Controller
+from .utils import print_tor_status
 import os
 import uuid
 import shutil
@@ -20,7 +21,7 @@ class TorRunner:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(('127.0.0.1', port)) != 0
 
-    def _two_free_ports(self, at):  # TODO => to torrunner class
+    def _two_free_ports(self, at):
         max_port = 65535
         ports = []
         while at < max_port:
@@ -32,16 +33,7 @@ class TorRunner:
             at += 1
         return (ports[0], ports[1])
 
-    @staticmethod
-    def get_tor_ready(line):
-        p = re.compile(r'Bootstrapped \d+%')
-        msg = re.findall(p, line)
-        if len(msg) > 0:
-            print(f"\rTor: {msg[0]}", end="")  # log
-        if "Bootstrapped 100%" in line:
-            print(f"\rTOR is ready, download links started")
-
-    def start(self):
+    def start(self, cli_initialized=False, parts=0):
         os.mkdir(self.ddir)
         self.tor_ports = self._two_free_ports(41000)
         config = "SocksPort " + str(self.tor_ports[0]) + "\n"
@@ -52,9 +44,30 @@ class TorRunner:
         c = open(tcpath, "w")
         c.write(config)
         c.close()
+
+        def print_cli_wrapper(line):
+            return print_tor_status(line, parts)
+
+        def print_no_cli(line):
+            return print(line, end="\r")
+
+        if cli_initialized:
+            print_func = print_cli_wrapper
+        else:
+            print_func = print_no_cli
+
+        def get_tor_ready(line):
+            p = re.compile(r'Bootstrapped \d+%')
+            msg = re.findall(p, line)
+
+            if len(msg) > 0:
+                print_func(f"Tor: {msg[0]}")  # log
+            if "Bootstrapped 100%" in line:
+                print_func(f"TOR is ready, download links started")
+
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),
-            init_msg_handler=TorRunner.get_tor_ready, close_output=True)
+            init_msg_handler=get_tor_ready, close_output=True)
 
     def reload(self):
         self.ctrl = Controller.from_port(port=self.tor_ports[1])
