@@ -4,8 +4,9 @@
 import argparse
 import sys
 import signal
+from os import path
 
-from ulozto_downloader import downloader, captcha, torrunner, __version__
+from uldlib import downloader, captcha, __version__, __path__
 
 
 def main():
@@ -26,15 +27,14 @@ def main():
     args = parser.parse_args()
 
     if args.auto_captcha:
-        model_path = "model.tflite"
+        model_path = path.join(__path__[0], "model.tflite")
         model_download_url = "https://github.com/JanPalasek/ulozto-captcha-breaker/releases/download/v2.2/model.tflite"
         captcha_solve_fnc = captcha.AutoReadCaptcha(
             model_path, model_download_url)
     else:
         captcha_solve_fnc = captcha.tkinter_user_prompt
 
-    tor = torrunner.TorRunner()
-    d = downloader.Downloader(captcha_solve_fnc, tor)
+    d = downloader.Downloader(captcha_solve_fnc)
 
     # Register sigint handler
     def sigint_handler(sig, frame):

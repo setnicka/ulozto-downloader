@@ -1,18 +1,15 @@
 import re
 from urllib.parse import urlparse
-from os import path
+from os import path, remove
+import sys
 import requests
-import logging
-import ssl
 import colors
 
-from .const import XML_HEADERS, CACHEPREFIX
+from .torrunner import TorRunner
+from .const import XML_HEADERS, CACHEPOSTFIX
 from .linkcache import LinkCache
 
 from requests.sessions import RequestsCookieJar
-
-# disable warnings and below from torpy
-logging.getLogger('torpy').setLevel(logging.ERROR)
 
 
 def parse_single(text, regex):
@@ -36,27 +33,31 @@ class Page:
     quickDownloadURL: str
     captchaURL: str
     isDirectDownload: bool
-    lastCachedIdx: int
     numTorLinks: int
     alreadyDownloaded: int
 
-    def __init__(self, tor, url, parts):
+    def __init__(self, url, target_dir, parts, tor):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
-                tor_ports: (tuple) : (SocksPort, ControlPort) tuple
                 url (str): URL of the page with file
-
+                target_dir (str): user defined output directory
+                parts (int): number of segments (parts)
+                tor: (TorRunner): tor runner instance
             Raises:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
-        self.stats = {"all": 0, "ok": 0, "bad": 0,
-                      "lim": 0, "block": 0, "net": 0}  # statistics
-        self.tor = tor
+
         self.url = url
+        self.target_dir = target_dir
         self.parts = parts
+        self.tor = tor
         parsed_url = urlparse(url)
         self.pagename = parsed_url.hostname.capitalize()
+        self.cli_initialized = False
+        self.alreadyDownloaded = 0
+        self.stats = {"all": 0, "ok": 0, "bad": 0,
+                      "lim": 0, "block": 0, "net": 0}  # statistics
 
         cookies = None
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
@@ -199,37 +200,40 @@ class Page:
             Returns:
                 str: URL for downloading the file
         """
-        # cache empty
-        self.cache_empty = False
-        self.lastCachedIdx = 0
+
         self.numTorLinks = 0
         self.torRunning = False
-        self.torDdir = ""
+        self.cacheEmpty = False
+        self.linkCache = LinkCache(path.join(self.target_dir, self.filename))
 
-        if not path.exists(self.filename + CACHEPREFIX):
-            self.cache_empty = True
-
-        while not self.cache_empty and self.parts > self.numTorLinks:
-            cached_link = LinkCache(
-                self.filename + CACHEPREFIX).get(self.lastCachedIdx)
-            if cached_link:
-                self.lastCachedIdx += 1
+        while not self.cacheEmpty:
+            cached = self.linkCache.get()
+            self.cacheEmpty = True
+            for link in cached:
+                # linkCache.use(self.numTorLinks)
                 self.numTorLinks += 1
-                yield cached_link
-            else:
-                self.cache_empty = True
-                break
+                yield link
 
-        while self.cache_empty and self.parts > (self.numTorLinks):
+        while (self.numTorLinks + self.alreadyDownloaded) < self.parts:
             if not self.torRunning:
                 print("Starting TOR...")
-                self.tor.start()
-                self.torRunning = True
+                # tor started after cli initialized
+                try:
+                    self.tor.start(
+                        cli_initialized=self.cli_initialized, parts=self.parts)
+                    self.torRunning = True
+                    proxies = {
+                        'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
+                        'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
+                    }
 
-            proxies = {
-                'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
-                'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
-            }
+                except OSError as e:
+                    self._error_net_stat(
+                        f"Tor start failed: {e}, exiting.. try run program again..", print_func)
+                    # remove tor data
+                    if path.exists(self.tor.ddir):
+                        remove(self.tor.ddir)
+                    sys.exit(1)
 
             # reload tor after 1. use or all except badCatcha case
             reload = False
@@ -237,65 +241,61 @@ class Page:
                 self.tor.reload()
 
             try:
-                while True:
-                    s = requests.Session()
-                    if urlparse(self.url).hostname == "pornfile.cz":
-                        r = s.post("https://pornfile.cz/porn-disclaimer/", data={
-                            "agree": "Souhlasím",
-                            "_do": "pornDisclaimer-submit",
-                        })
+                s = requests.Session()
+                if urlparse(self.url).hostname == "pornfile.cz":
+                    r = s.post("https://pornfile.cz/porn-disclaimer/", data={
+                        "agree": "Souhlasím",
+                        "_do": "pornDisclaimer-submit",
+                    })
 
-                    resp = requests.Response()
+                resp = requests.Response()
 
-                    if self.isDirectDownload:
+                if self.isDirectDownload:
+                    print_func(
+                        f"New TOR session for GET downlink {self._stat_fmt()}")
+                    resp = s.get(self.captchaURL,
+                                 headers=XML_HEADERS, proxies=proxies)
+                else:
+                    print_func(
+                        f"New TOR session for POST captcha {self._stat_fmt()}")
+                    r = s.get(self.captchaURL, headers=XML_HEADERS)
+
+                    # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
+                    captcha_image_url = parse_single(
+                        r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
+                    if captcha_image_url is None:
                         print_func(
-                            f"New TOR session for GET downlink {self._stat_fmt()}")
-                        resp = s.get(self.captchaURL,
-                                     headers=XML_HEADERS, proxies=proxies)
-                    else:
-                        print_func(
-                            f"New TOR session for POST captcha {self._stat_fmt()}")
-                        r = s.get(self.captchaURL, headers=XML_HEADERS)
+                            "ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.")
+                        self.stats["all"] += 1
+                        self.stats["net"] += 1
+                        reload = True
+                        continue
 
-                        # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
-                        captcha_image_url = parse_single(r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
-                        if captcha_image_url is None:
-                            print_func(
-                                "ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.")
-                            self.stats["all"] += 1
-                            self.stats["net"] += 1
-                            break
+                    captcha_data = {}
+                    for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
+                        captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
 
-                        captcha_data = {}
-                        for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
-                            captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
+                    print_func("Image URL obtained, trying to solve")
+                    captcha_answer = captcha_solve_func(
+                        "https:" + captcha_image_url, print_func=print_func)
 
-                        print_func("Image URL obtained, trying to solve")
-                        captcha_answer = captcha_solve_func(
-                            "https:" + captcha_image_url, print_func=print_func)
+                    captcha_data["captcha_value"] = captcha_answer
 
-                        captcha_data["captcha_value"] = captcha_answer
+                    self._captcha_send_print_stat(
+                        captcha_answer, print_func)
+                    resp = s.post(self.captchaURL, data=captcha_data,
+                                  headers=XML_HEADERS, proxies=proxies)
 
-                        self._captcha_send_print_stat(
-                            captcha_answer, print_func)
-                        resp = s.post(self.captchaURL, data=captcha_data,
-                                      headers=XML_HEADERS, proxies=proxies)
-
-                    # s.close()  # close connections
-                    # generate result or break
-                    result = self._link_validation_stat(resp, print_func)
-                    # for noreload (bad captcha no need reload TOR)
-                    reload = result[1]
-                    if result[0]:
-                        dlink = resp.json()["slowDownloadLink"]
-                        # cache link here
-                        LinkCache(self.filename + CACHEPREFIX).add(dlink)
-                        self.numTorLinks += 1
-                        # need reload TOR here because yield
-                        self.tor.reload()
-                        yield dlink
-                    else:
-                        break
+                # generate result or break
+                result = self._link_validation_stat(resp, print_func)
+                # for noreload (bad captcha no need reload TOR)
+                reload = result[1]
+                if result[0]:
+                    dlink = resp.json()["slowDownloadLink"]
+                    # cache link here
+                    self.linkCache.add(dlink)
+                    self.numTorLinks += 1
+                    yield dlink
 
             except requests.exceptions.ConnectionError:
                 self._error_net_stat(
@@ -306,5 +306,3 @@ class Page:
             except requests.exceptions.ReadTimeout:
                 self._error_net_stat(
                     "ReadTimeout error, try new TOR session.", print_func)
-
-        # self.tor.stop()
