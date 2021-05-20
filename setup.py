@@ -1,9 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 from distutils.core import setup
 import setuptools  # noqa
 
-from ulozto_downloader import __version__
+from uldlib import __version__
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -18,6 +18,7 @@ setup(
     author='Jiří Setnička and Vlado Driver',
     author_email='setnicka@seznam.cz',
     url='https://github.com/setnicka/ulozto-downloader',
+    package_data={'': ['model.tflite']},
     install_requires=[
         'requests',
         'Pillow',

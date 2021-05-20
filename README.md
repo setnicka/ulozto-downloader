@@ -53,6 +53,11 @@ $ pip3 install <URL>
 # Například tedy pro Python 3.8 na x86-64 Linuxu:
 $ pip3 install https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp38-cp38-linux_x86_64.whl
 ```
+Na linuxu je mozné pro novější **python 3.9.x** zkompilovat **tflite_runtime-2.6.0-cp39-cp39-linux_x86_64.whl** a pak nainstalovat pomocí:
+```shell
+pip install tflite_runtime-2.6.0-cp39-cp39-linux_x86_64.whl
+```
+Tento soubor pro python 3.9 a linux x86-64 je nyní také součástí repozitáře.
 
 ### Instalace Tkinter (ruční opisování CAPTCHA)
 
