@@ -1,6 +1,5 @@
 import socket
 import stem.process
-from stem import Signal
 from stem.control import Controller
 from .utils import print_tor_status
 import os
@@ -63,7 +62,7 @@ class TorRunner:
             if len(msg) > 0:
                 print_func(f"Tor: {msg[0]}")  # log
             if "Bootstrapped 100%" in line:
-                print_func(f"TOR is ready, download links started")
+                print_func("TOR is ready, download links started")
 
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),

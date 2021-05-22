@@ -5,8 +5,7 @@ import sys
 import requests
 import colors
 
-from .torrunner import TorRunner
-from .const import XML_HEADERS, CACHEPOSTFIX
+from .const import XML_HEADERS
 from .linkcache import LinkCache
 
 from requests.sessions import RequestsCookieJar
