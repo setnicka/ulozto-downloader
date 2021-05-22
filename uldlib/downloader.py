@@ -72,18 +72,34 @@ class Downloader:
 
         m = SegFileMonitor(filename, utils.print_saved_status, interval_sec)
 
+        t_start = time.time()
+        s_start = m.size()
+        last_bps = [(s_start, t_start)]
+
         while True:
-            s_start = m.size()
             time.sleep(interval_sec)
-            s_end = m.size()
-            int_size = s_end - s_start
-            bps = int_size / interval_sec
-            proc = s_end / size * 100
+            s = m.size()
+            t = time.time()
+
+            total_bps = (s - s_start) / (t - t_start)
+
+            # Average now bps for last 10 measurements
+            if len(last_bps) >= 10:
+                last_bps = last_bps[1:]
+            (s_last, t_last) = last_bps[0]
+            now_bps = (s - s_last) / (t - t_last)
+            last_bps.append((s, t))
+
+            remaining = (size - s) / total_bps if total_bps > 0 else 0
 
             utils.print_saved_status(
-                f"{round(proc, 2):.2f} % -> "
-                f"{round((s_end / 1024 ** 2), 2):.2f} MB -> "
-                f"{round((bps / 1024 ** 2), 2):.2f} MB/sec", parts)
+                f"{(s / 1024 ** 2):.2f} MB"
+                f" ({(s / size * 100):.2f} %)"
+                f"\tavg. speed: {(total_bps / 1024 ** 2):.2f} MB/s"
+                f"\tcurr. speed: {(now_bps / 1024 ** 2):.2f} MB/s"
+                f"\tremaining: {timedelta(seconds=round(remaining))}",
+                parts
+            )
 
     @staticmethod
     def _download_part(part, download_url_queue):
