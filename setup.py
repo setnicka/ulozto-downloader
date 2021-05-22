@@ -33,5 +33,10 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
     ],
-    scripts=['ulozto-downloader'],
+    entry_points={
+        'console_scripts': [
+            'ulozto-downloader = uldlib.cmd:run',
+            'uld = uldlib.cmd:run',
+        ]
+    }
 )

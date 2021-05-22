@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-"""Uloz.to quick multiple sessions downloader."""
-
 import argparse
 import sys
 import signal
@@ -9,7 +6,7 @@ from os import path
 from uldlib import downloader, captcha, __version__, __path__
 
 
-def main():
+def run():
     parser = argparse.ArgumentParser(
         description='Download file from Uloz.to using multiple parallel downloads.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -46,7 +43,3 @@ def main():
 
     d.download(args.url, args.parts, args.output)
     d.terminate()
-
-
-if __name__ == "__main__":
-    main()
