@@ -1,20 +1,16 @@
 from .const import CLI_STATUS_STARTLINE, DOWNPOSTFIX, DOWN_CHUNK_SIZE
 from . import utils
 from .torrunner import TorRunner
-from .segfile import SegFileWriter, SegFileLoader, SegFileMonitor
+from .segfile import SegFileLoader, SegFileMonitor
 from .page import Page
 import colors
 import requests
 import os
 import sys
-import signal
 import multiprocessing as mp
 import time
-import math
-import shutil
 from datetime import timedelta
 from types import FunctionType
-from .const import DOWNPOSTFIX
 
 
 class Downloader:
@@ -61,9 +57,9 @@ class Downloader:
     def _captcha_breaker(self, page, parts):
         msg = ""
         if page.isDirectDownload:
-            msg = f"Solve direct dlink .."
+            msg = "Solve direct dlink .."
         else:
-            msg = f"Solve CAPTCHA dlink .."
+            msg = "Solve CAPTCHA dlink .."
 
         # utils.print_captcha_status(msg, parts)
         for url in self.captcha_download_links_generator:
@@ -244,7 +240,7 @@ class Downloader:
         print(colors.blue("File:\t\t") + colors.bold(page.filename))
         print(colors.blue("URL:\t\t") + page.url)
         print(colors.blue("Download type:\t") + self.download_type)
-        print(colors.blue(f"Size / parts: \t") +
+        print(colors.blue("Size / parts: \t") +
               colors.bold(f"{round(total_size / 1024**2, 2)}MB => " +
               f"{file_data.parts} x {round(file_data.part_size / 1024**2, 2)}MB"))
 

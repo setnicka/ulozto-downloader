@@ -1,11 +1,7 @@
 from math import ceil
-import colors
-from . import utils, const
+from . import const
 import os
-import time
-from io import BytesIO
 from sys import byteorder
-from collections import UserDict
 
 
 class SegFileWriter:

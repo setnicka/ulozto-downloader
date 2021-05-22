@@ -1,6 +1,4 @@
 from os import path, remove
-from sys import byteorder
-from io import BytesIO
 from math import ceil
 from time import time
 import re
