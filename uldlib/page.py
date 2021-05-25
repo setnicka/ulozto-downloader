@@ -187,7 +187,7 @@ class Page:
         return (ok, reload)
 
     def _captcha_send_print_stat(self, answ, print_func):
-        print_func(f"Send CAPTCHA:  '{answ}' {self._stat_fmt()}")
+        print_func(f"Send CAPTCHA:   '{answ}'   {self._stat_fmt()} tout: {colors.blue(self.conn_timeout)}")
 
     def captcha_download_links_generator(self, captcha_solve_func, print_func=print):
         """
@@ -253,12 +253,12 @@ class Page:
 
                 if self.isDirectDownload:
                     print_func(
-                        f"New TOR session for GET downlink {self._stat_fmt()}")
+                        f"TOR session get downlink {self._stat_fmt()} tout: {colors.blue(self.conn_timeout)}")
                     resp = s.get(self.captchaURL,
                                  headers=XML_HEADERS, proxies=proxies, timeout=self.conn_timeout)
                 else:
                     print_func(
-                        f"New TOR session for POST captcha {self._stat_fmt()}")
+                        f"TOR session post captcha {self._stat_fmt()} tout: {colors.blue(self.conn_timeout)}")
                     r = s.get(self.captchaURL, headers=XML_HEADERS)
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
