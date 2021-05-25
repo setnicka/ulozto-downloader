@@ -144,8 +144,7 @@ class Downloader:
                 # speed in bytes per second:
                 speed = part.now_downloaded / elapsed if elapsed > 0 else 0
                 # remaining time in seconds:
-                remaining = (part.size - part.downloaded) / \
-                    speed if speed > 0 else 0
+                remaining = (part.size - part.downloaded) / speed if speed > 0 else 0
 
                 utils.print_part_status(id, "{:.2f}%\t{:.2f}/{:.2f} MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
                     round(part.downloaded / part.size * 100, 2),
@@ -165,8 +164,7 @@ class Downloader:
                 "/"+str(round(part.downloaded / 1024**2, 2))
             ),
             str(timedelta(seconds=round(part.elapsed))),
-            round(part.now_downloaded / part.elapsed /
-                  1024, 2) if part.elapsed > 0 else 0
+            round(part.now_downloaded / part.elapsed / 1024, 2) if part.elapsed > 0 else 0
         )))
 
         # close part file files
@@ -351,8 +349,7 @@ class Downloader:
 
         elapsed = time.time() - started
         # speed in bytes per second:
-        speed = (total_size - previously_downloaded) / \
-            elapsed if elapsed > 0 else 0
+        speed = (total_size - previously_downloaded) / elapsed if elapsed > 0 else 0
         print(colors.green("All downloads finished"))
         print("Stats: Downloaded {}{} MB in {} (average speed {} MB/s)".format(
             round((total_size - previously_downloaded) / 1024**2, 2),

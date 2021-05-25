@@ -102,16 +102,14 @@ class Page:
         """
 
         # Parse filename only to the first | (Uloz.to sometimes add titles like "name | on-line video | Ulož.to" and so on)
-        self.filename = parse_single(
-            self.body, r'<title>([^\|]*)\s+\|.*</title>')
+        self.filename = parse_single(self.body, r'<title>([^\|]*)\s+\|.*</title>')
 
         # Replace illegal characters in filename https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
         self.filename = re.sub(r'[<>:,\"/\\|\?*]', "-", self.filename)
 
         download_found = False
 
-        self.quickDownloadURL = parse_single(
-            self.body, r'href="(/quickDownload/[^"]*)"')
+        self.quickDownloadURL = parse_single(self.body, r'href="(/quickDownload/[^"]*)"')
         if self.quickDownloadURL:
             download_found = True
             self.quickDownloadURL = self.baseURL + self.quickDownloadURL
@@ -127,8 +125,7 @@ class Page:
 
         # Other files are protected by CAPTCHA challenge
         # <a href="javascript:;" data-href="/download-dialog/free/default?fileSlug=apj0q49iETRR" class="c-button c-button__c-white js-free-download-button-dialog t-free-download-button">
-        self.captchaURL = parse_single(
-            self.body, r'data-href="(/download-dialog/free/[^"]*)"')
+        self.captchaURL = parse_single(self.body, r'data-href="(/download-dialog/free/[^"]*)"')
         if self.captchaURL:
             download_found = True
             self.captchaURL = self.baseURL + self.captchaURL
@@ -277,8 +274,7 @@ class Page:
 
                     captcha_data = {}
                     for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
-                        captcha_data[name] = parse_single(
-                            r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
+                        captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
 
                     print_func("Image URL obtained, trying to solve")
                     captcha_answer = captcha_solve_func(
