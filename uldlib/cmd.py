@@ -2,8 +2,8 @@ import argparse
 import sys
 import signal
 from os import path
-
 from uldlib import downloader, captcha, __version__, __path__
+from uldlib.const import DEFAULT_CONN_TIMEOUT
 
 
 def run():
@@ -19,6 +19,8 @@ def run():
                         type=str, default="./", help='Target directory')
     parser.add_argument('--auto-captcha', default=False, action="store_true",
                         help='Try to solve captchas automatically using TensorFlow')
+    parser.add_argument('--conn-timeout', metavar='SEC', default=DEFAULT_CONN_TIMEOUT, type=int,
+                        help='Set connection timeout for TOR sessions in seconds')
     parser.add_argument('--version', action='version', version=__version__)
 
     args = parser.parse_args()
@@ -41,5 +43,5 @@ def run():
 
     signal.signal(signal.SIGINT, sigint_handler)
 
-    d.download(args.url, args.parts, args.output)
+    d.download(args.url, args.parts, args.output, args.conn_timeout)
     d.terminate()
