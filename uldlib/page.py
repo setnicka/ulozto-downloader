@@ -1,6 +1,7 @@
 import re
+import shutil
 from urllib.parse import urlparse
-from os import path, remove
+from os import path
 import sys
 import requests
 import colors
@@ -231,7 +232,7 @@ class Page:
                         f"Tor start failed: {e}, exiting.. try run program again..", print_func)
                     # remove tor data
                     if path.exists(self.tor.ddir):
-                        remove(self.tor.ddir)
+                        shutil.rmtree(self.tor.ddir, ignore_errors=True)
                     sys.exit(1)
 
             # reload tor after 1. use or all except badCatcha case
