@@ -41,8 +41,5 @@ def run():
 
     signal.signal(signal.SIGINT, sigint_handler)
 
-    # strip tracking info from links
-    if "#!" in args.url:
-        args.url = args.url.split("#!")[0]
     d.download(args.url, args.parts, args.output)
     d.terminate()
