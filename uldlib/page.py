@@ -20,6 +20,10 @@ def parse_single(text, regex):
     return result[0]
 
 
+def strip_tracking_info(url: str):
+    return url.split("#!")[0] if "#!" in url else url
+
+
 class Page:
     url: str
     body: str
@@ -48,11 +52,11 @@ class Page:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
 
-        self.url = url
+        self.url = strip_tracking_info(url)
         self.target_dir = target_dir
         self.parts = parts
         self.tor = tor
-        parsed_url = urlparse(url)
+        parsed_url = urlparse(self.url)
         self.pagename = parsed_url.hostname.capitalize()
         self.cli_initialized = False
         self.alreadyDownloaded = 0
@@ -72,7 +76,7 @@ class Page:
         if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
             r = requests.get(url, allow_redirects=False, cookies=cookies)
             if 'Location' in r.headers:
-                self.url = r.headers['Location']
+                self.url = strip_tracking_info(r.headers['Location'])
                 parsed_url = urlparse(self.url)
 
         r = requests.get(self.url, cookies=cookies)
