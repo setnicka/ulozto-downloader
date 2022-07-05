@@ -378,8 +378,3 @@ class Downloader:
             str(timedelta(seconds=round(elapsed))),
             round(speed / 1024**2, 2)
         ))
-        # remove resume .udown file
-        udown_file = output_filename + DOWNPOSTFIX
-        if os.path.exists(udown_file):
-            print(f"Delete file: {udown_file}")
-            os.remove(udown_file)
