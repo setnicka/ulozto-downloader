@@ -50,7 +50,8 @@ class Downloader:
         if hasattr(self, "processes") and self.processes is not None:
             self.stop_download.set()
             for p in self.processes:
-                p.terminate()
+                if platform.system() == 'Windows':
+                    p.join()
         print('Download terminated.')
         if hasattr(self, "monitor") and self.monitor is not None:
             self.stop_monitor.set()
