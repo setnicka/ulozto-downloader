@@ -349,7 +349,7 @@ class Downloader:
         # 4. Wait for all downloads to finish
         success = True
         for p in self.processes:
-            p.join()
+            while p.is_alive():  p.join(1)
             if p.exitcode != 0:
                 success = False
 
