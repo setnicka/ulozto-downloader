@@ -7,7 +7,11 @@ import colors
 import requests
 import os
 import sys
-import multiprocessing as mp
+import platform
+if platform.system() == 'Windows' :
+    import multiprocessing.dummy as mp
+else:
+    import multiprocessing as mp
 import time
 from datetime import timedelta
 from types import FunctionType
@@ -22,6 +26,9 @@ class Downloader:
     captcha_solve_func: FunctionType
     download_url_queue: mp.Queue
     parts: int
+    stop_download: mp.Event
+    stop_captcha: mp.Event
+    stop_monitor: mp.Event
 
     def __init__(self, captcha_solve_func):
         self.captcha_solve_func = captcha_solve_func
@@ -38,14 +45,15 @@ class Downloader:
 
         print('Terminating download. Please wait for stopping all processes.')
         if hasattr(self, "captcha_process") and self.captcha_process is not None:
-            self.captcha_process.terminate()
+            self.stop_captcha.set()
         print('Terminate download processes')
         if hasattr(self, "processes") and self.processes is not None:
+            self.stop_download.set()
             for p in self.processes:
                 p.terminate()
         print('Download terminated.')
         if hasattr(self, "monitor") and self.monitor is not None:
-            self.monitor.terminate()
+            self.stop_monitor.set()
         print('End download monitor')
 
     def _captcha_print_func_wrapper(self, text):
@@ -55,7 +63,7 @@ class Downloader:
         else:
             utils.print_captcha_status(text, self.parts)
 
-    def _captcha_breaker(self, page, parts):
+    def _captcha_breaker(self, page, parts,stop_captcha):
         msg = ""
         if page.isDirectDownload:
             msg = "Solve direct dlink .."
@@ -64,11 +72,13 @@ class Downloader:
 
         # utils.print_captcha_status(msg, parts)
         for url in self.captcha_download_links_generator:
+            if stop_captcha.is_set() :
+                break
             utils.print_captcha_status(msg, parts)
             self.download_url_queue.put(url)
 
     @staticmethod
-    def _save_progress(filename, parts, size, interval_sec):
+    def _save_progress(filename, parts, size, interval_sec, stop_monitor):
 
         m = SegFileMonitor(filename, utils.print_saved_status, interval_sec)
 
@@ -80,6 +90,10 @@ class Downloader:
             time.sleep(interval_sec)
             s = m.size()
             t = time.time()
+
+            if stop_monitor.is_set():
+                m.clean()
+                break
 
             total_bps = (s - s_start) / (t - t_start)
 
@@ -102,7 +116,7 @@ class Downloader:
             )
 
     @staticmethod
-    def _download_part(part, download_url_queue):
+    def _download_part(part, download_url_queue, stop_download):
         """Download given part of the download.
 
             Arguments:
@@ -125,7 +139,7 @@ class Downloader:
             utils.print_part_status(id, colors.yellow(
                 "Status code 429 Too Many Requests returned... will try again in few seconds"))
             time.sleep(5)
-            return Downloader._download_part(part, download_url_queue)
+            return Downloader._download_part(part, download_url_queue, stop_download)
 
         if r.status_code != 206 and r.status_code != 200:
             utils.print_part_status(id, colors.red(
@@ -138,6 +152,9 @@ class Downloader:
                 part.write(chunk)
                 part.now_downloaded += len(chunk)
                 elapsed = time.time() - part.started
+
+                if stop_download.is_set():
+                    return
 
                 # Print status line downloaded and speed
                 # speed in bytes per second:
@@ -188,6 +205,10 @@ class Downloader:
         self.isLimited = False
         self.isCaptcha = False
 
+        self.stop_download = mp.Event()
+        self.stop_captcha = mp.Event()
+        self.stop_monitor = mp.Event()
+        
         started = time.time()
         previously_downloaded = 0
 
@@ -278,7 +299,7 @@ class Downloader:
 
             # Start CAPTCHA breaker in separate process
             self.captcha_process = mp.Process(
-                target=self._captcha_breaker, args=(page, self.parts)
+                target=self._captcha_breaker, args=(page, self.parts, self.stop_captcha)
             )
 
         cpb_started = False
@@ -286,7 +307,7 @@ class Downloader:
 
         # save status monitor
         self.monitor = mp.Process(target=Downloader._save_progress, args=(
-            file_data.filename, file_data.parts, file_data.size, 1/3))
+            file_data.filename, file_data.parts, file_data.size, 1/3, self.stop_monitor))
         self.monitor.start()
 
         # 3. Start all downloads fill self.processes
@@ -311,13 +332,13 @@ class Downloader:
 
             # Start download process in another process (parallel):
             p = mp.Process(target=Downloader._download_part,
-                           args=(part, self.download_url_queue))
+                           args=(part, self.download_url_queue, self.stop_download))
             p.start()
             self.processes.append(p)
 
         if self.isLimited:
             # no need for another CAPTCHAs
-            self.captcha_process.terminate()
+            self.stop_captcha.set()
             if self.isCaptcha:
                 utils.print_captcha_status(
                     "All downloads started, no need to solve another CAPTCHAs..", self.parts)
@@ -342,6 +363,7 @@ class Downloader:
         # result end status
         if not success:
             print(colors.red("Failure of one or more downloads, exiting"))
+            self.terminate()
             sys.exit(1)
 
         elapsed = time.time() - started
