@@ -82,7 +82,7 @@ potřeba instalovat ručně).
 1.) Stáhněte si aplikaci [Termux](https://termux.com/) (Ne z google play!)
 2.) Povolte aplikaci přístup k uložišti pomocí:
 ```shell
-$ termux-setup-storage
+termux-setup-storage
 ```
 3.) Aktualizujte balíčky:
 ```shell
@@ -90,11 +90,11 @@ pkg upgrade
 ```
 4.) Nainstalujte Python:
 ```shell
-$ pkg install python3
+pkg install python3
 ```
 5.) Nainstalujte Numpy:
 ```shell
-$ MATHLIB="m" pip install numpy
+MATHLIB="m" pip install numpy
 ```
 6.) Nainstalujte libjpeg-turbo:
 ```shell
