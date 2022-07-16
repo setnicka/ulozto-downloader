@@ -118,7 +118,6 @@ pip install git+https://github.com/zbyna/ulozto-downloader.git@multiprocessingdu
 ```
 11.) Nainstalujte grafické rozhraní, ve kterém budete opisovat captcha kódy, podle návodu [zde](https://wiki.termux.com/wiki/Graphical_Environment).
 
-
 ## Použití
 
 Pro volbu automatického čtení CAPTCHA kódů slouží přepínač `--auto-captcha`,
