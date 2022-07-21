@@ -275,8 +275,7 @@ class Page:
                         captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
 
                     print_func("Image URL obtained, trying to solve")
-                    captcha_answer = captcha_solve_func(
-                        "https:" + captcha_image_url, print_func=print_func)
+                    captcha_answer = captcha_solve_func(captcha_image_url, print_func=print_func)
 
                     captcha_data["captcha_value"] = captcha_answer
 
