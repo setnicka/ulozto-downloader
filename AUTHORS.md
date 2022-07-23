@@ -4,4 +4,3 @@
 * Jan Musílek
 * Koticka
 * VladoDriver
-* zbyna
