@@ -114,7 +114,7 @@ pkg install git
 ```
 10.) Nainstalujte opravenou verzi Ulozto-downloaderu:
 ```shell
-pip install git+https://github.com/zbyna/ulozto-downloader.git@multiprocessingdummy#egg=ulozto-downloader
+pip install git+https://github.com/Vojtak42/ulozto-downloader.git
 ```
 11.) Nainstalujte grafické rozhraní, ve kterém budete opisovat captcha kódy, podle návodu [zde](https://wiki.termux.com/wiki/Graphical_Environment).
 
