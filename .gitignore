@@ -1,7 +1,6 @@
 dist/**
 build/**
 uld.egg-info/**
-ulozto_downloader.egg-info/**
 uldlib/__pycache__/**
 parser.py
 
