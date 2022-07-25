@@ -1,5 +1,5 @@
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 from os import path, remove
 import sys
 import requests
@@ -275,8 +275,7 @@ class Page:
                         captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
 
                     # https://github.com/setnicka/ulozto-downloader/issues/82
-                    if captcha_image_url.startswith("//"):
-                        captcha_image_url = "https:" + captcha_image_url
+                    captcha_image_url = urljoin("https:", captcha_image_url)
     
                     print_func("Image URL obtained, trying to solve")
                     captcha_answer = captcha_solve_func(
