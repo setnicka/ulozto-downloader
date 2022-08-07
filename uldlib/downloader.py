@@ -1,4 +1,4 @@
-from .const import CLI_STATUS_STARTLINE, DOWNPOSTFIX, DOWN_CHUNK_SIZE
+from .const import CLI_STATUS_STARTLINE, DOWNPOSTFIX, DOWN_CHUNK_SIZE, DEFAULT_CONN_TIMEOUT
 from . import utils
 from .torrunner import TorRunner
 from .segfile import SegFileLoader, SegFileMonitor
@@ -27,6 +27,7 @@ class Downloader:
         self.captcha_solve_func = captcha_solve_func
         self.cli_initialized = False
         self.monitor = None
+        self.conn_timeout = None
 
     def terminate(self):
         self.terminating = True
@@ -172,7 +173,7 @@ class Downloader:
         # reuse download link if need
         download_url_queue.put(part.download_url)
 
-    def download(self, url, parts=10, target_dir=""):
+    def download(self, url, parts=10, target_dir="", conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Download file from Uloz.to using multiple parallel downloads.
             Arguments:
                 url (str): URL of the Uloz.to file to download
@@ -181,9 +182,11 @@ class Downloader:
         """
         self.url = url
         self.parts = parts
+        self.target_dir = target_dir
+        self.conn_timeout = conn_timeout
+
         self.processes = []
         self.captcha_process = None
-        self.target_dir = target_dir
         self.terminating = False
         self.isLimited = False
         self.isCaptcha = False
@@ -198,7 +201,7 @@ class Downloader:
 
         try:
             tor = TorRunner()
-            page = Page(url, target_dir, parts, tor)
+            page = Page(url, target_dir, parts, tor, self.conn_timeout)
             page.parse()
 
         except RuntimeError as e:

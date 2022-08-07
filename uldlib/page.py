@@ -6,7 +6,7 @@ import sys
 import requests
 import colors
 
-from .const import XML_HEADERS
+from .const import XML_HEADERS, DEFAULT_CONN_TIMEOUT
 from .linkcache import LinkCache
 
 from requests.sessions import RequestsCookieJar
@@ -40,7 +40,7 @@ class Page:
     numTorLinks: int
     alreadyDownloaded: int
 
-    def __init__(self, url, target_dir, parts, tor):
+    def __init__(self, url, target_dir, parts, tor, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
@@ -56,6 +56,8 @@ class Page:
         self.target_dir = target_dir
         self.parts = parts
         self.tor = tor
+        self.conn_timeout = conn_timeout
+
         parsed_url = urlparse(self.url)
         self.pagename = parsed_url.hostname.capitalize()
         self.cli_initialized = False
@@ -190,7 +192,7 @@ class Page:
         return (ok, reload)
 
     def _captcha_send_print_stat(self, answ, print_func):
-        print_func(f"Send CAPTCHA:  '{answ}' {self._stat_fmt()}")
+        print_func(f"Send CAP: '{answ}' {self._stat_fmt()} timeout: {colors.blue(self.conn_timeout)}")
 
     def captcha_download_links_generator(self, captcha_solve_func, print_func=print):
         """
@@ -256,12 +258,12 @@ class Page:
 
                 if self.isDirectDownload:
                     print_func(
-                        f"New TOR session for GET downlink {self._stat_fmt()}")
+                        f"TOR get downlink {self._stat_fmt()} timeout: {colors.blue(self.conn_timeout)}")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, proxies=proxies)
+                                 headers=XML_HEADERS, proxies=proxies, timeout=self.conn_timeout)
                 else:
                     print_func(
-                        f"New TOR session for POST captcha {self._stat_fmt()}")
+                        f"TOR post captcha {self._stat_fmt()} timeout: {colors.blue(self.conn_timeout)}")
                     r = s.get(self.captchaURL, headers=XML_HEADERS)
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
@@ -291,7 +293,7 @@ class Page:
                     self._captcha_send_print_stat(
                         captcha_answer, print_func)
                     resp = s.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, proxies=proxies)
+                                  headers=XML_HEADERS, proxies=proxies, timeout=self.conn_timeout)
 
                 # generate result or break
                 result = self._link_validation_stat(resp, print_func)
