@@ -1,9 +1,11 @@
+import threading
+import time
 import requests
 from PIL import Image
 from io import BytesIO
 
 
-def tkinter_user_prompt(img_url, print_func):
+def tkinter_user_prompt(img_url, print_func, stop_event: threading.Event = None):
     """Display captcha from given URL and ask user for input in GUI window.
 
         Arguments:
@@ -42,8 +44,25 @@ def tkinter_user_prompt(img_url, print_func):
 
     tk.Button(root, text='Send', command=root.quit).pack()
 
+    # Closing of the window separated to thread because it can be closed by
+    # the user input (done==True) or by the terminating application (stop_event)
+    done = False
+
+    def stop_func():
+        while True:
+            if done or (stop_event and stop_event.is_set()):
+                break
+            time.sleep(0.1)
+        print_func("Closing tkinter window, wait…")
+        root.quit()
+
+    stop_thread = threading.Thread(target=stop_func)
+    stop_thread.start()
     root.mainloop()  # Wait for user input
+
     value = entry.get()
+    done = True
+    stop_thread.join()
     root.destroy()
     return value
 
@@ -82,7 +101,8 @@ class AutoReadCaptcha:
         model_content = open(model_path, "rb").read()
         self.interpreter = tflite.Interpreter(model_content=model_content)
 
-    def __call__(self, img_url, print_func):
+    def __call__(self, img_url, print_func, stop_event=None):
+        # stop_event not used, because tflite interpreter is hard to cancel (but is is quick)
         import numpy as np
 
         interpreter = self.interpreter
