@@ -1,5 +1,6 @@
 import re
 import shutil
+import threading
 from urllib.parse import urlparse, urljoin
 from os import path
 import sys
@@ -194,7 +195,7 @@ class Page:
     def _captcha_send_print_stat(self, answ, print_func):
         print_func(f"Send CAP: '{answ}' {self._stat_fmt()} timeout: {colors.blue(self.conn_timeout)}")
 
-    def captcha_download_links_generator(self, captcha_solve_func, print_func=print):
+    def captcha_download_links_generator(self, captcha_solve_func, print_func=print, stop_event: threading.Event = None):
         """
             Generator for CAPTCHA download links using Tor sessions.
             Get download link by solving CAPTCHA, calls CAPTCHA related functions..
@@ -202,6 +203,7 @@ class Page:
             Arguments:
                 captcha_solve_func (func): Function which gets CAPTCHA challenge URL and returns CAPTCHA answer
                 print_func (func): Function used for printing log (default is bultin 'print')
+                stop_event: Threading event to check when to stop
 
             Returns:
                 str: URL for downloading the file
@@ -221,6 +223,9 @@ class Page:
                 yield link
 
         while (self.numTorLinks + self.alreadyDownloaded) < self.parts:
+            if stop_event and stop_event.is_set():
+                break
+
             if not self.torRunning:
                 print("Starting TOR...")
                 # tor started after cli initialized

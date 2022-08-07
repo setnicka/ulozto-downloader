@@ -52,6 +52,7 @@ class AutoReadCaptcha:
     def __init__(self, model_path, model_url, print_func=print):
         from urllib.request import urlretrieve
         import os
+        import tflite_runtime.interpreter as tflite
 
         def reporthook(blocknum, block_size, total_size):
             """
@@ -78,18 +79,15 @@ class AutoReadCaptcha:
             # rename temp model
             os.rename(model_temp_path, model_path)
 
-        # due to multiprocessing the model model have to be loaded in each
-        # process independently
-        self.model_content = open(model_path, "rb").read()
-        self.print_func = print_func
+        model_content = open(model_path, "rb").read()
+        self.interpreter = tflite.Interpreter(model_content=model_content)
 
     def __call__(self, img_url, print_func):
-        import tflite_runtime.interpreter as tflite
         import numpy as np
 
-        print_func("Auto solving CAPTCHA")
+        interpreter = self.interpreter
 
-        interpreter = tflite.Interpreter(model_content=self.model_content)
+        print_func("Auto solving CAPTCHA")
 
         u = requests.get(img_url)
         raw_data = u.content

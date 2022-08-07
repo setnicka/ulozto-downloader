@@ -6,28 +6,37 @@ from .page import Page
 import colors
 import requests
 import os
+from queue import Queue
 import sys
-import multiprocessing as mp
+import threading
 import time
 from datetime import timedelta
 from types import FunctionType
+from typing import List
 
 
 class Downloader:
     cli_initialized: bool
     terminating: bool
-    processes: slice
-    captcha_process: mp.Process
-    monitor: mp.Process
+    threads: List[threading.Thread]
+    captcha_thread: threading.Thread = None
+    monitor: threading.Thread = None
     captcha_solve_func: FunctionType
-    download_url_queue: mp.Queue
+    download_url_queue: Queue
     parts: int
+    stop_download: threading.Event
+    stop_captcha: threading.Event
+    stop_monitor: threading.Event
 
     def __init__(self, captcha_solve_func):
         self.captcha_solve_func = captcha_solve_func
         self.cli_initialized = False
         self.monitor = None
         self.conn_timeout = None
+
+        self.stop_download = threading.Event()
+        self.stop_captcha = threading.Event()
+        self.stop_monitor = threading.Event()
 
     def terminate(self):
         self.terminating = True
@@ -37,16 +46,17 @@ class Downloader:
             sys.stdout.write("\033[?25h")  # show cursor
             self.cli_initialized = False
 
-        print('Terminating download. Please wait for stopping all processes.')
-        if hasattr(self, "captcha_process") and self.captcha_process is not None:
-            self.captcha_process.terminate()
-        print('Terminate download processes')
-        if hasattr(self, "processes") and self.processes is not None:
-            for p in self.processes:
-                p.terminate()
+        print('Terminating download. Please wait for stopping all threads.')
+        self.stop_captcha.set()
+        self.stop_download.set()
+        for p in self.threads:
+            p.join()
         print('Download terminated.')
-        if hasattr(self, "monitor") and self.monitor is not None:
-            self.monitor.terminate()
+        self.stop_monitor.set()
+        if self.captcha_thread:
+            self.captcha_thread.join()
+        if self.monitor:
+            self.monitor.join()
         print('End download monitor')
 
     def _captcha_print_func_wrapper(self, text):
@@ -65,11 +75,12 @@ class Downloader:
 
         # utils.print_captcha_status(msg, parts)
         for url in self.captcha_download_links_generator:
+            if self.stop_captcha.is_set():
+                break
             utils.print_captcha_status(msg, parts)
             self.download_url_queue.put(url)
 
-    @staticmethod
-    def _save_progress(filename, parts, size, interval_sec):
+    def _save_progress(self, filename, parts, size, interval_sec):
 
         m = SegFileMonitor(filename, utils.print_saved_status, interval_sec)
 
@@ -79,6 +90,11 @@ class Downloader:
 
         while True:
             time.sleep(interval_sec)
+
+            if self.stop_monitor.is_set():
+                m.clean()
+                break
+
             s = m.size()
             t = time.time()
 
@@ -102,8 +118,18 @@ class Downloader:
                 parts
             )
 
-    @staticmethod
-    def _download_part(part, download_url_queue):
+    def _download_part(self, part):
+        try:
+            self._download_part_internal(part)
+            part.success = True
+        except Exception as e:
+            utils.print_part_status(part.id, colors.red(
+                f"Error: {e}"
+            ))
+            part.exception = e
+            part.success = False
+
+    def _download_part_internal(self, part):
         """Download given part of the download.
 
             Arguments:
@@ -111,22 +137,24 @@ class Downloader:
         """
 
         id = part.id
-        utils.print_part_status(id, "Starting download")
 
         part.started = time.time()
         part.now_downloaded = 0
 
-        # Note the stream=True parameter
-        r = requests.get(part.download_url, stream=True, allow_redirects=True, headers={
-            "Range": "bytes={}-{}".format(part.pfrom + part.downloaded, part.pto),
-            "Connection": "close",
-        })
+        while True:
+            utils.print_part_status(id, "Starting download")
+            # Note the stream=True parameter
+            r = requests.get(part.download_url, stream=True, allow_redirects=True, headers={
+                "Range": "bytes={}-{}".format(part.pfrom + part.downloaded, part.pto),
+                "Connection": "close",
+            })
 
-        if r.status_code == 429:
+            if r.status_code != 429:
+                break
+
             utils.print_part_status(id, colors.yellow(
                 "Status code 429 Too Many Requests returned... will try again in few seconds"))
             time.sleep(5)
-            return Downloader._download_part(part, download_url_queue)
 
         if r.status_code != 206 and r.status_code != 200:
             utils.print_part_status(id, colors.red(
@@ -139,6 +167,9 @@ class Downloader:
                 part.write(chunk)
                 part.now_downloaded += len(chunk)
                 elapsed = time.time() - part.started
+
+                if self.stop_download.is_set():
+                    return
 
                 # Print status line downloaded and speed
                 # speed in bytes per second:
@@ -171,7 +202,7 @@ class Downloader:
         part.close()
 
         # reuse download link if need
-        download_url_queue.put(part.download_url)
+        self.download_url_queue.put(part.download_url)
 
     def download(self, url, parts=10, target_dir="", conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Download file from Uloz.to using multiple parallel downloads.
@@ -185,8 +216,7 @@ class Downloader:
         self.target_dir = target_dir
         self.conn_timeout = conn_timeout
 
-        self.processes = []
-        self.captcha_process = None
+        self.threads = []
         self.terminating = False
         self.isLimited = False
         self.isCaptcha = False
@@ -235,7 +265,8 @@ class Downloader:
 
             self.captcha_download_links_generator = page.captcha_download_links_generator(
                 captcha_solve_func=self.captcha_solve_func,
-                print_func=self._captcha_print_func_wrapper
+                print_func=self._captcha_print_func_wrapper,
+                stop_event=self.stop_captcha,
             )
             download_url = next(self.captcha_download_links_generator)
 
@@ -272,7 +303,7 @@ class Downloader:
                 utils.print_part_status(part.id, "Waiting for CAPTCHA...")
 
         # Prepare queue for recycling download URLs
-        self.download_url_queue = mp.Queue(maxsize=0)
+        self.download_url_queue = Queue(maxsize=0)
 
         # limited must use TOR and solve links or captcha
         if self.isLimited:
@@ -280,7 +311,7 @@ class Downloader:
             self.download_url_queue.put(download_url)
 
             # Start CAPTCHA breaker in separate process
-            self.captcha_process = mp.Process(
+            self.captcha_thread = threading.Thread(
                 target=self._captcha_breaker, args=(page, self.parts)
             )
 
@@ -288,11 +319,11 @@ class Downloader:
         page.alreadyDownloaded = 0
 
         # save status monitor
-        self.monitor = mp.Process(target=Downloader._save_progress, args=(
+        self.monitor = threading.Thread(target=self._save_progress, args=(
             file_data.filename, file_data.parts, file_data.size, 1/3))
         self.monitor.start()
 
-        # 3. Start all downloads fill self.processes
+        # 3. Start all downloads fill self.threads
         for part in downloads:
             if self.terminating:
                 return
@@ -306,21 +337,20 @@ class Downloader:
 
             if self.isLimited:
                 if not cpb_started:
-                    self.captcha_process.start()
+                    self.captcha_thread.start()
                     cpb_started = True
                 part.download_url = self.download_url_queue.get()
             else:
                 part.download_url = download_url
 
             # Start download process in another process (parallel):
-            p = mp.Process(target=Downloader._download_part,
-                           args=(part, self.download_url_queue))
-            p.start()
-            self.processes.append(p)
+            t = threading.Thread(target=self._download_part, args=(part,))
+            t.start()
+            self.threads.append(t)
 
         if self.isLimited:
             # no need for another CAPTCHAs
-            self.captcha_process.terminate()
+            self.stop_captcha.set()
             if self.isCaptcha:
                 utils.print_captcha_status(
                     "All downloads started, no need to solve another CAPTCHAs..", self.parts)
@@ -330,9 +360,10 @@ class Downloader:
 
         # 4. Wait for all downloads to finish
         success = True
-        for p in self.processes:
-            p.join()
-            if p.exitcode != 0:
+        for (t, part) in zip(self.threads, downloads):
+            while t.is_alive():
+                t.join(1)
+            if not part.success:
                 success = False
 
         # clear cli
