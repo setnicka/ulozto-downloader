@@ -1,4 +1,6 @@
+from io import FileIO
 from math import ceil
+from typing import List
 from . import const
 import os
 from sys import byteorder
@@ -6,8 +8,19 @@ from sys import byteorder
 
 class SegFileWriter:
     """Implementation segment write file"""
+    file: str
+    parts: int
+    id: int
 
-    def __init__(self, file, parts, seg_idx):
+    size: int
+    written: int
+    pfrom: int
+    pto: int
+
+    sfp: FileIO
+    sbs: int
+
+    def __init__(self, file: str, parts: int, seg_idx: int):
         self.file = file
         self.parts = parts
         self.id = seg_idx
@@ -23,24 +36,22 @@ class SegFileWriter:
         # byte size of stat segment
         self.sbs = int.from_bytes(self.sfp.read(1), byteorder)
         # total_size
-        self.total_size = int.from_bytes(self.sfp.read(self.sbs), byteorder)
+        total_size = int.from_bytes(self.sfp.read(self.sbs), byteorder)
 
-        # size
-        self.size = ceil(self.total_size / self.parts)
-
-        # from, to, size
+        # size, from, to
+        self.size = ceil(total_size / self.parts)
         self.pfrom = self.size * self.id
-        self.pto = min(((self.size * (self.id + 1)) - 1), self.total_size)
+        self.pto = min(((self.size * (self.id + 1)) - 1), total_size)
 
         # fix last part have different size
         if self.id == (self.parts - 1):
-            self.size = self.total_size - self.pfrom
+            self.size = total_size - self.pfrom
 
-        # get downloaded
+        # get written
         self.stat_pos = 1 + self.sbs + (self.id * self.sbs)
         self.sfp.seek(self.stat_pos, os.SEEK_SET)
         self.cur_pos = int.from_bytes(self.sfp.read(self.sbs), byteorder)
-        self.downloaded = self.cur_pos - self.pfrom
+        self.written = self.cur_pos - self.pfrom
 
         # seek file position
         self.fp.seek(self.cur_pos, os.SEEK_SET)
@@ -52,7 +63,7 @@ class SegFileWriter:
     def write(self, chunk):
         self.fp.seek(self.cur_pos, os.SEEK_SET)
         wrt = self.fp.write(chunk)
-        self.downloaded += wrt
+        self.written += wrt
         self.cur_pos += wrt
         self._write_stat(self.cur_pos)
 
@@ -64,7 +75,7 @@ class SegFileWriter:
 
 
 class SegFileLoader:
-    def __init__(self, filename, size, parts):
+    def __init__(self, filename: str, size: int, parts: int):
         self.filename = filename
         self.size = size
         self.parts = parts
@@ -72,17 +83,16 @@ class SegFileLoader:
         # create stat file if not exists
         self._create_files_if_not_ex()
 
-    def make_writers(self):
+    def make_writers(self) -> List[SegFileWriter]:
         if self._first_created:
             self.fp.close()
             self.sfp.close()
             parts = self.parts
         else:
             parts = self._get_parts_from_existing()
-        return [
-            SegFileWriter(self.filename, parts, i)
-            for i in range(parts)
-        ]
+            self.parts = parts
+
+        return [SegFileWriter(self.filename, parts, i) for i in range(parts)]
 
     def _get_parts_from_existing(self):
         self.sfp = open(self.filename + const.DOWNPOSTFIX, 'rb')
@@ -126,13 +136,12 @@ class SegFileLoader:
 
 class SegFileMonitor:
     """Monitor data in download status file (.udown)"""
+    progfile: str
+    sfp: FileIO = None
+    done: bool = False
 
-    def __init__(self, filename, print_func, sec=1/10):
+    def __init__(self, filename: str):
         self.progfile = filename + const.DOWNPOSTFIX
-        self.print_func = print_func
-        self.sec = sec
-        self.sfp = None
-        self.done = False
 
     def size(self):
         if os.path.exists(self.progfile):
