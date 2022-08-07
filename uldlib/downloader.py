@@ -3,6 +3,7 @@ from . import utils
 from .torrunner import TorRunner
 from .segfile import SegFileLoader, SegFileMonitor
 from .page import Page
+from .part import DownloadPart
 import colors
 import requests
 import os
@@ -13,6 +14,7 @@ import time
 from datetime import timedelta
 from types import FunctionType
 from typing import List
+
 
 
 class Downloader:
@@ -82,7 +84,7 @@ class Downloader:
 
     def _save_progress(self, filename, parts, size, interval_sec):
 
-        m = SegFileMonitor(filename, utils.print_saved_status, interval_sec)
+        m = SegFileMonitor(filename)
 
         t_start = time.time()
         s_start = m.size()
@@ -118,7 +120,7 @@ class Downloader:
                 parts
             )
 
-    def _download_part(self, part):
+    def _download_part(self, part: DownloadPart):
         try:
             self._download_part_internal(part)
             part.success = True
@@ -129,23 +131,27 @@ class Downloader:
             part.exception = e
             part.success = False
 
-    def _download_part_internal(self, part):
+    def _download_part_internal(self, part: DownloadPart):
         """Download given part of the download.
 
             Arguments:
-                part (dict): Specification of the part to download
+                part (DownloadPart): Specification of the part to download
         """
 
+        writer = part.writer
         id = part.id
 
         part.started = time.time()
         part.now_downloaded = 0
 
         while True:
+            if self.stop_download.is_set():
+                return
+
             utils.print_part_status(id, "Starting download")
             # Note the stream=True parameter
             r = requests.get(part.download_url, stream=True, allow_redirects=True, headers={
-                "Range": "bytes={}-{}".format(part.pfrom + part.downloaded, part.pto),
+                "Range": "bytes={}-{}".format(writer.pfrom + writer.written, writer.pto),
                 "Connection": "close",
             })
 
@@ -158,29 +164,31 @@ class Downloader:
 
         if r.status_code != 206 and r.status_code != 200:
             utils.print_part_status(id, colors.red(
-                f"Status code {r.status_code} returned: {part.pfrom + part.downloaded}/{part.pto}"))
+                f"Status code {r.status_code} returned: {writer.pfrom + writer.written}/{writer.pto}"))
             sys.exit(1)
 
         # reimplement as multisegment write file class
         for chunk in r.iter_content(chunk_size=DOWN_CHUNK_SIZE):
             if chunk:  # filter out keep-alive new chunks
-                part.write(chunk)
+                writer.write(chunk)
                 part.now_downloaded += len(chunk)
                 elapsed = time.time() - part.started
 
                 if self.stop_download.is_set():
+                    # TODO: cancel the request when urllib3/requests will be able to do so
+                    # (now r.close() would be blocking until all chunks downloaded)
                     return
 
                 # Print status line downloaded and speed
                 # speed in bytes per second:
                 speed = part.now_downloaded / elapsed if elapsed > 0 else 0
                 # remaining time in seconds:
-                remaining = (part.size - part.downloaded) / speed if speed > 0 else 0
+                remaining = (writer.size - writer.written) / speed if speed > 0 else 0
 
                 utils.print_part_status(id, "{:.2f}%\t{:.2f}/{:.2f} MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
-                    round(part.downloaded / part.size * 100, 2),
-                    round(part.downloaded / 1024**2,
-                          2), round(part.size / 1024**2, 2),
+                    round(writer.written / writer.size * 100, 2),
+                    round(writer.written / 1024**2,
+                          2), round(writer.size / 1024**2, 2),
                     round(speed / 1024, 2),
                     str(timedelta(seconds=round(elapsed))),
                     str(timedelta(seconds=round(remaining))),
@@ -188,18 +196,18 @@ class Downloader:
 
         # download end status
         r.close()
-        part.elapsed = time.time() - part.started
+        elapsed = time.time() - part.started
         utils.print_part_status(id, colors.green("Successfully downloaded {}{} MB in {} (speed {} KB/s)".format(
             round(part.now_downloaded / 1024**2, 2),
-            "" if part.now_downloaded == part.downloaded else (
-                "/"+str(round(part.downloaded / 1024**2, 2))
+            "" if part.now_downloaded == writer.written else (
+                "/"+str(round(writer.written / 1024**2, 2))
             ),
-            str(timedelta(seconds=round(part.elapsed))),
-            round(part.now_downloaded / part.elapsed / 1024, 2) if part.elapsed > 0 else 0
+            str(timedelta(seconds=round(elapsed))),
+            round(part.now_downloaded / elapsed / 1024, 2) if elapsed > 0 else 0
         )))
 
         # close part file files
-        part.close()
+        writer.close()
 
         # reuse download link if need
         self.download_url_queue.put(part.download_url)
@@ -275,7 +283,7 @@ class Downloader:
 
         try:
             file_data = SegFileLoader(output_filename, total_size, parts)
-            downloads = file_data.make_writers()
+            writers = file_data.make_writers()
         except Exception as e:
             print(colors.red(
                 f"Failed: Can not create '{output_filename}' error: {e} "))
@@ -294,6 +302,8 @@ class Downloader:
         print(colors.blue("Size / parts: \t") +
               colors.bold(f"{round(total_size / 1024**2, 2)}MB => " +
               f"{file_data.parts} x {round(file_data.part_size / 1024**2, 2)}MB"))
+
+        downloads: List[DownloadPart] = [DownloadPart(w) for w in writers]
 
         # fill placeholder before download started
         for part in downloads:
@@ -329,7 +339,7 @@ class Downloader:
                 return
             id = part.id
 
-            if part.downloaded == part.size:
+            if part.writer.written == part.writer.size:
                 utils.print_part_status(id, colors.green(
                     "Already downloaded from previous run, skipping"))
                 page.alreadyDownloaded += 1
