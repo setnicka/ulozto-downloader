@@ -52,7 +52,7 @@ louskání CAPTCHA kódů (protože repozitář PyPI zakazuje přímé URL depen
 
 Program vyžaduje spustitelný tor, protože používá stem a očekává ho v `$PATH`.
 ```shell
-pip install tor
+$ pip install tor
 ```
 
 ### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
