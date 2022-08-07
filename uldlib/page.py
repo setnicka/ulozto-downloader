@@ -1,6 +1,7 @@
 import re
-from urllib.parse import urlparse
-from os import path, remove
+import shutil
+from urllib.parse import urlparse, urljoin
+from os import path
 import sys
 import requests
 import colors
@@ -17,6 +18,10 @@ def parse_single(text, regex):
     if len(result) == 0:
         return None
     return result[0]
+
+
+def strip_tracking_info(url: str):
+    return url.split("#!")[0] if "#!" in url else url
 
 
 class Page:
@@ -47,13 +52,13 @@ class Page:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
 
-        self.url = url
+        self.url = strip_tracking_info(url)
         self.target_dir = target_dir
         self.parts = parts
         self.tor = tor
         self.conn_timeout = conn_timeout
 
-        parsed_url = urlparse(url)
+        parsed_url = urlparse(self.url)
         self.pagename = parsed_url.hostname.capitalize()
         self.cli_initialized = False
         self.alreadyDownloaded = 0
@@ -73,7 +78,7 @@ class Page:
         if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
             r = requests.get(url, allow_redirects=False, cookies=cookies)
             if 'Location' in r.headers:
-                self.url = r.headers['Location']
+                self.url = strip_tracking_info(r.headers['Location'])
                 parsed_url = urlparse(self.url)
 
         r = requests.get(self.url, cookies=cookies)
@@ -233,7 +238,7 @@ class Page:
                         f"Tor start failed: {e}, exiting.. try run program again..", print_func)
                     # remove tor data
                     if path.exists(self.tor.ddir):
-                        remove(self.tor.ddir)
+                        shutil.rmtree(self.tor.ddir, ignore_errors=True)
                     sys.exit(1)
 
             # reload tor after 1. use or all except badCatcha case
@@ -276,9 +281,12 @@ class Page:
                     for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
                         captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
 
+                    # https://github.com/setnicka/ulozto-downloader/issues/82
+                    captcha_image_url = urljoin("https:", captcha_image_url)
+    
                     print_func("Image URL obtained, trying to solve")
                     captcha_answer = captcha_solve_func(
-                        "https:" + captcha_image_url, print_func=print_func)
+                        captcha_image_url, print_func=print_func)
 
                     captcha_data["captcha_value"] = captcha_answer
 
