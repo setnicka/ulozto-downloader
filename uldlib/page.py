@@ -1,6 +1,6 @@
 import re
 import shutil
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 from os import path
 import sys
 import requests
@@ -279,9 +279,12 @@ class Page:
                     for name in ("_token_", "timestamp", "salt", "hash", "captcha_type", "_do"):
                         captcha_data[name] = parse_single(r.text, r'name="' + re.escape(name) + r'" value="([^"]*)"')
 
+                    # https://github.com/setnicka/ulozto-downloader/issues/82
+                    captcha_image_url = urljoin("https:", captcha_image_url)
+    
                     print_func("Image URL obtained, trying to solve")
                     captcha_answer = captcha_solve_func(
-                        "https:" + captcha_image_url, print_func=print_func)
+                        captcha_image_url, print_func=print_func)
 
                     captcha_data["captcha_value"] = captcha_answer
 
