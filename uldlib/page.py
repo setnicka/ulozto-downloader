@@ -1,11 +1,15 @@
 import re
 import shutil
 import threading
+from typing import Type
 from urllib.parse import urlparse, urljoin
 from os import path
 import sys
 import requests
-import colors
+
+from uldlib.captcha import CaptchaSolver
+from uldlib.frontend import LogLevel
+from uldlib.torrunner import TorRunner
 
 from .const import XML_HEADERS, DEFAULT_CONN_TIMEOUT
 from .linkcache import LinkCache
@@ -41,7 +45,7 @@ class Page:
     numTorLinks: int
     alreadyDownloaded: int
 
-    def __init__(self, url, target_dir, parts, tor, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def __init__(self, url, target_dir, parts, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
@@ -142,22 +146,13 @@ class Page:
             raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
                                + " no direct download URL and no CAPTCHA challenge URL found")
 
-    def _stat_fmt(self):
-        count = colors.blue(self.stats['all'])
-        ok = colors.green(self.stats['ok'])
-        bad = colors.red(self.stats['bad'])
-        lim = colors.red(self.stats['lim'])
-        blo = colors.red(self.stats['block'])
-        net = colors.red(self.stats['net'])
-        return f":) [Ok: {ok} / {count}] :( [Badcp: {bad} Limited: {lim} Censored: {blo} NetErr: {net}]"
-
     # print TOR network error and += stats
-    def _error_net_stat(self, err, print_func):
+    def _error_net_stat(self, err, log_func):
         self.stats["all"] += 1
-        print_func(colors.red(f"Network error get new TOR connection: {err}"))
+        log_func(f"Network error get new TOR connection: {err}", level=LogLevel.ERROR)
         self.stats["net"] += 1
 
-    def _link_validation_stat(self, resp, print_func):
+    def _link_validation_stat(self, resp, log_func):
         linkdata = resp.text
         self.stats["all"] += 1
         ok = False
@@ -180,29 +175,25 @@ class Page:
         elif lim_str in linkdata:
             self.stats["lim"] += 1
             if not self.isDirectDownload:
-                print_func(colors.red(lim_msg))
+                log_func(lim_msg, level=LogLevel.ERROR)
         elif blk_str in linkdata:
             self.stats["block"] += 1
             if not self.isDirectDownload:
-                print_func(colors.red(blk_msg))
+                log_func(blk_msg, level=LogLevel.ERROR)
         elif bcp_str in linkdata:
             self.stats["bad"] += 1
-            print_func(colors.red(bcp_msg))
+            log_func(bcp_msg, level=LogLevel.ERROR)
             reload = False  # bad captcha same IP again
 
         return (ok, reload)
 
-    def _captcha_send_print_stat(self, answ, print_func):
-        print_func(f"Send CAP: '{answ}' {self._stat_fmt()} timeout: {colors.blue(self.conn_timeout)}")
-
-    def captcha_download_links_generator(self, captcha_solve_func, print_func=print, stop_event: threading.Event = None):
+    def captcha_download_links_generator(self, solver: Type[CaptchaSolver], stop_event: threading.Event = None):
         """
             Generator for CAPTCHA download links using Tor sessions.
             Get download link by solving CAPTCHA, calls CAPTCHA related functions..
 
             Arguments:
-                captcha_solve_func (func): Function which gets CAPTCHA challenge URL and returns CAPTCHA answer
-                print_func (func): Function used for printing log (default is bultin 'print')
+                solver (CaptchaSolver): Class with solve method which gets CAPTCHA challenge URL and returns CAPTCHA answer
                 stop_event: Threading event to check when to stop
 
             Returns:
@@ -230,8 +221,7 @@ class Page:
                 print("Starting TOR...")
                 # tor started after cli initialized
                 try:
-                    self.tor.start(
-                        cli_initialized=self.cli_initialized, parts=self.parts)
+                    self.tor.start(log_func=solver.log)
                     self.torRunning = True
                     proxies = {
                         'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
@@ -240,7 +230,7 @@ class Page:
 
                 except OSError as e:
                     self._error_net_stat(
-                        f"Tor start failed: {e}, exiting.. try run program again..", print_func)
+                        f"Tor start failed: {e}, exiting.. try run program again..", solver.log)
                     # remove tor data
                     if path.exists(self.tor.ddir):
                         shutil.rmtree(self.tor.ddir, ignore_errors=True)
@@ -262,23 +252,21 @@ class Page:
                 resp = requests.Response()
 
                 if self.isDirectDownload:
-                    print_func(
-                        f"TOR get downlink {self._stat_fmt()} timeout: {colors.blue(self.conn_timeout)}")
+                    solver.log(f"TOR get downlink (timeout {self.conn_timeout})")
                     resp = s.get(self.captchaURL,
                                  headers=XML_HEADERS, proxies=proxies, timeout=self.conn_timeout)
                 else:
-                    print_func(
-                        f"TOR post captcha {self._stat_fmt()} timeout: {colors.blue(self.conn_timeout)}")
+                    solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
                     r = s.get(self.captchaURL, headers=XML_HEADERS)
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(
                         r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
                     if captcha_image_url is None:
-                        print_func(
-                            "ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.")
+                        solver.log("ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.", level=LogLevel.ERROR)
                         self.stats["all"] += 1
                         self.stats["net"] += 1
+                        solver.stats(self.stats)
                         reload = True
                         continue
 
@@ -289,20 +277,19 @@ class Page:
                     # https://github.com/setnicka/ulozto-downloader/issues/82
                     captcha_image_url = urljoin("https:", captcha_image_url)
 
-                    print_func("Image URL obtained, trying to solve")
-                    captcha_answer = captcha_solve_func(
-                        captcha_image_url, print_func=print_func,
-                        stop_event=stop_event)
+                    solver.log("Image URL obtained, trying to solve")
+                    captcha_answer = solver.solve(captcha_image_url, stop_event)
 
                     captcha_data["captcha_value"] = captcha_answer
 
-                    self._captcha_send_print_stat(
-                        captcha_answer, print_func)
+                    solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout})")
+
                     resp = s.post(self.captchaURL, data=captcha_data,
                                   headers=XML_HEADERS, proxies=proxies, timeout=self.conn_timeout)
 
                 # generate result or break
-                result = self._link_validation_stat(resp, print_func)
+                result = self._link_validation_stat(resp, solver.log)
+                solver.stats(self.stats)
                 # for noreload (bad captcha no need reload TOR)
                 reload = result[1]
                 if result[0]:
@@ -314,10 +301,12 @@ class Page:
 
             except requests.exceptions.ConnectionError:
                 self._error_net_stat(
-                    "Connection error, try new TOR session.", print_func)
+                    "Connection error, try new TOR session.", solver.log)
             except requests.exceptions.ChunkedEncodingError:
                 self._error_net_stat(
-                    "Error while communicating over Tor, try new TOR session", print_func)
+                    "Error while communicating over Tor, try new TOR session", solver.log)
             except requests.exceptions.ReadTimeout:
                 self._error_net_stat(
-                    "ReadTimeout error, try new TOR session.", print_func)
+                    "ReadTimeout error, try new TOR session.", solver.log)
+
+            solver.stats(self.stats)

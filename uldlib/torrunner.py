@@ -1,7 +1,6 @@
 import socket
 import stem.process
 from stem.control import Controller
-from .utils import print_tor_status
 import os
 import uuid
 import shutil
@@ -32,7 +31,7 @@ class TorRunner:
             at += 1
         return (ports[0], ports[1])
 
-    def start(self, cli_initialized=False, parts=0):
+    def start(self, log_func):
         os.mkdir(self.ddir)
         self.tor_ports = self._two_free_ports(41000)
         config = "SocksPort " + str(self.tor_ports[0]) + "\n"
@@ -44,25 +43,14 @@ class TorRunner:
         c.write(config)
         c.close()
 
-        def print_cli_wrapper(line):
-            return print_tor_status(line, parts)
-
-        def print_no_cli(line):
-            return print(line, end="\r")
-
-        if cli_initialized:
-            print_func = print_cli_wrapper
-        else:
-            print_func = print_no_cli
-
         def get_tor_ready(line):
             p = re.compile(r'Bootstrapped \d+%')
             msg = re.findall(p, line)
 
             if len(msg) > 0:
-                print_func(f"Tor: {msg[0]}")  # log
+                log_func(f"Tor: {msg[0]}")  # log
             if "Bootstrapped 100%" in line:
-                print_func("TOR is ready, download links started")
+                log_func("TOR is ready, download links started")
 
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),
