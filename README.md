@@ -36,7 +36,7 @@ s webovým rozhraním.
 
 ## Instalace
 
-### Návod na instalaci na Android [zde](https://github.com/Vojtak42/ulozto-downloader/blob/termux/doc/install.md)
+### [Android - Termux](doc/install.md)
 
 
 Nejjednodušší je využít verzi uveřejněnou na [PyPi](https://pypi.org/project/ulozto-downloader/):
