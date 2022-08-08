@@ -1,72 +1,66 @@
-from .const import CLI_STATUS_STARTLINE, DOWNPOSTFIX, DOWN_CHUNK_SIZE, DEFAULT_CONN_TIMEOUT
-from . import utils
-from .torrunner import TorRunner
-from .segfile import SegFileLoader, SegFileMonitor
-from .page import Page
-from .part import DownloadPart
-import colors
-import requests
 import os
 from queue import Queue
+import requests
 import sys
 import threading
 import time
-from datetime import timedelta
-from types import FunctionType
-from typing import List
+from typing import List, Type
 
+from uldlib.captcha import CaptchaSolver
+from uldlib.const import DOWNPOSTFIX, DOWN_CHUNK_SIZE, DEFAULT_CONN_TIMEOUT
+from uldlib.frontend import DownloadInfo, Frontend
+from uldlib.page import Page
+from uldlib.part import DownloadPart
+from uldlib.segfile import SegFileLoader
+from uldlib.torrunner import TorRunner
+from uldlib.utils import LogLevel
 
 
 class Downloader:
-    cli_initialized: bool
     terminating: bool
+
     threads: List[threading.Thread]
+    stop_download: threading.Event
+
+    frontend: Type[Frontend]
+    frontend_thread: threading.Thread = None
+    stop_frontend: threading.Event
+
+    captcha_solver: Type[CaptchaSolver]
     captcha_thread: threading.Thread = None
-    monitor: threading.Thread = None
-    captcha_solve_func: FunctionType
+    stop_captcha: threading.Event
+
     download_url_queue: Queue
     parts: int
-    stop_download: threading.Event
-    stop_captcha: threading.Event
-    stop_monitor: threading.Event
 
-    def __init__(self, captcha_solve_func):
-        self.captcha_solve_func = captcha_solve_func
+    def __init__(self, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+        self.frontend = frontend
+        self.log = frontend.main_log
+        self.captcha_solver = captcha_solver
+
         self.cli_initialized = False
-        self.monitor = None
         self.conn_timeout = None
 
         self.stop_download = threading.Event()
         self.stop_captcha = threading.Event()
-        self.stop_monitor = threading.Event()
+        self.stop_frontend = threading.Event()
 
     def terminate(self):
+        if self.terminating:
+            return
         self.terminating = True
-        if self.cli_initialized:
-            sys.stdout.write("\033[{};{}H".format(
-                self.parts + CLI_STATUS_STARTLINE + 2, 0))
-            sys.stdout.write("\033[?25h")  # show cursor
-            self.cli_initialized = False
 
-        print('Terminating download. Please wait for stopping all threads.')
+        self.log('Terminating download. Please wait for stopping all threads.')
         self.stop_captcha.set()
         self.stop_download.set()
-        for p in self.threads:
-            p.join()
-        print('Download terminated.')
-        self.stop_monitor.set()
         if self.captcha_thread:
             self.captcha_thread.join()
-        if self.monitor:
-            self.monitor.join()
-        print('End download monitor')
-
-    def _captcha_print_func_wrapper(self, text):
-        if not self.cli_initialized:
-            sys.stdout.write(colors.blue(
-                "[Link solve]\t") + text + "\033[K\r")
-        else:
-            utils.print_captcha_status(text, self.parts)
+        for p in self.threads:
+            p.join()
+        self.log('Download terminated.')
+        self.stop_frontend.set()
+        if self.frontend_thread:
+            self.frontend_thread.join()
 
     def _captcha_breaker(self, page, parts):
         msg = ""
@@ -75,50 +69,11 @@ class Downloader:
         else:
             msg = "Solve CAPTCHA dlink .."
 
-        # utils.print_captcha_status(msg, parts)
         for url in self.captcha_download_links_generator:
             if self.stop_captcha.is_set():
                 break
-            utils.print_captcha_status(msg, parts)
+            self.captcha_solver.log(msg)
             self.download_url_queue.put(url)
-
-    def _save_progress(self, filename, parts, size, interval_sec):
-
-        m = SegFileMonitor(filename)
-
-        t_start = time.time()
-        s_start = m.size()
-        last_bps = [(s_start, t_start)]
-
-        while True:
-            time.sleep(interval_sec)
-
-            if self.stop_monitor.is_set():
-                m.clean()
-                break
-
-            s = m.size()
-            t = time.time()
-
-            total_bps = (s - s_start) / (t - t_start)
-
-            # Average now bps for last 10 measurements
-            if len(last_bps) >= 10:
-                last_bps = last_bps[1:]
-            (s_last, t_last) = last_bps[0]
-            now_bps = (s - s_last) / (t - t_last)
-            last_bps.append((s, t))
-
-            remaining = (size - s) / total_bps if total_bps > 0 else 0
-
-            utils.print_saved_status(
-                f"{(s / 1024 ** 2):.2f} MB"
-                f" ({(s / size * 100):.2f} %)"
-                f"\tavg. speed: {(total_bps / 1024 ** 2):.2f} MB/s"
-                f"\tcurr. speed: {(now_bps / 1024 ** 2):.2f} MB/s"
-                f"\tremaining: {timedelta(seconds=round(remaining))}",
-                parts
-            )
 
     def _download_part(self, part: DownloadPart):
         try:
@@ -135,7 +90,6 @@ class Downloader:
         """
 
         writer = part.writer
-        id = part.id
 
         part.lock.acquire()
         part.started = True
@@ -210,13 +164,10 @@ class Downloader:
         self.isLimited = False
         self.isCaptcha = False
 
-        started = time.time()
-        previously_downloaded = 0
-
         # 1. Prepare downloads
-        print("Starting downloading for url '{}'".format(url))
+        self.log("Starting downloading for url '{}'".format(url))
         # 1.1 Get all needed information
-        print("Getting info (filename, filesize, ...)")
+        self.log("Getting info (filename, filesize, …)")
 
         try:
             tor = TorRunner()
@@ -224,38 +175,41 @@ class Downloader:
             page.parse()
 
         except RuntimeError as e:
-            print(colors.red('Cannot download file: ' + str(e)))
+            self.log('Cannot download file: ' + str(e), error=True)
             sys.exit(1)
 
         # Do check - only if .udown status file not exists get question
         output_filename = os.path.join(target_dir, page.filename)
         if os.path.isfile(output_filename) and not os.path.isfile(output_filename+DOWNPOSTFIX):
-            print(colors.yellow(
-                "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename)), end="")
-            if input().strip() != 'y':
+            answer = self.frontend.prompt(
+                "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename),
+                level=LogLevel.WARNING
+            )
+            if answer != 'y':
                 sys.exit(1)
 
+        info = DownloadInfo()
+        info.filename = page.filename
+        info.url = page.url
+
         if page.quickDownloadURL is not None:
-            print("You are VERY lucky, this is QUICK direct download without CAPTCHA, downloading as 1 quick part :)")
-            self.download_type = "fullspeed direct download (without CAPTCHA)"
+            self.log("You are VERY lucky, this is QUICK direct download without CAPTCHA, downloading as 1 quick part :)")
+            info.download_type = "fullspeed direct download (without CAPTCHA)"
             download_url = page.quickDownloadURL
             self.captcha_solve_func = None
 
         if page.slowDownloadURL is not None:
             self.isLimited = True
             if page.isDirectDownload:
-                print("You are lucky, this is slow direct download without CAPTCHA :)")
-                self.download_type = "slow direct download (without CAPTCHA)"
+                self.log("You are lucky, this is slow direct download without CAPTCHA :)")
+                info.download_type = "slow direct download (without CAPTCHA)"
             else:
                 self.isCaptcha = True
-                print(
-                    "CAPTCHA protected download - CAPTCHA challenges will be displayed\n")
-                self.download_type = "CAPTCHA protected download"
+                self.log("CAPTCHA protected download - CAPTCHA challenges will be displayed")
+                info.download_type = "CAPTCHA protected download"
 
             self.captcha_download_links_generator = page.captcha_download_links_generator(
-                captcha_solve_func=self.captcha_solve_func,
-                print_func=self._captcha_print_func_wrapper,
-                stop_event=self.stop_captcha,
+                solver=self.captcha_solver, stop_event=self.stop_captcha,
             )
             download_url = next(self.captcha_download_links_generator)
 
@@ -266,32 +220,30 @@ class Downloader:
             file_data = SegFileLoader(output_filename, total_size, parts)
             writers = file_data.make_writers()
         except Exception as e:
-            print(colors.red(
-                f"Failed: Can not create '{output_filename}' error: {e} "))
-            self.terminate()
-            sys.exit()
+            self.log(f"Failed: Can not create '{output_filename}' error: {e} ", level=LogLevel.ERROR)
+            sys.exit(1)
 
-        # 2. Initialize cli status table interface
-        # if windows, use 'cls', otherwise use 'clear'
-        os.system('cls' if os.name == 'nt' else 'clear')
-        sys.stdout.write("\033[?25l")  # hide cursor
-        self.cli_initialized = True
-        page.cli_initialized = True  # for tor in Page
-        print(colors.blue("File:\t\t") + colors.bold(page.filename))
-        print(colors.blue("URL:\t\t") + page.url)
-        print(colors.blue("Download type:\t") + self.download_type)
-        print(colors.blue("Size / parts: \t") +
-              colors.bold(f"{round(total_size / 1024**2, 2)}MB => " +
-              f"{file_data.parts} x {round(file_data.part_size / 1024**2, 2)}MB"))
+        info.total_size = total_size
+        info.part_size = file_data.part_size
+        info.parts = file_data.parts
 
         downloads: List[DownloadPart] = [DownloadPart(w) for w in writers]
 
+        # 2. All info gathered, initialize frontend
+
+        self.log("Download in progress")
         # fill placeholder before download started
         for part in downloads:
             if page.isDirectDownload:
                 part.set_status("Waiting for direct link…")
             else:
                 part.set_status("Waiting for CAPTCHA…")
+
+        self.frontend_thread = threading.Thread(
+            target=self.frontend.run,
+            args=(info, downloads, self.stop_frontend)
+        )
+        self.frontend_thread.start()
 
         # Prepare queue for recycling download URLs
         self.download_url_queue = Queue(maxsize=0)
@@ -309,16 +261,10 @@ class Downloader:
         cpb_started = False
         page.alreadyDownloaded = 0
 
-        # save status monitor
-        self.monitor = threading.Thread(target=self._save_progress, args=(
-            file_data.filename, file_data.parts, file_data.size, 1/3))
-        self.monitor.start()
-
         # 3. Start all downloads fill self.threads
         for part in downloads:
             if self.terminating:
                 return
-            id = part.id
 
             if part.writer.written == part.writer.size:
                 part.completed = True
@@ -343,11 +289,9 @@ class Downloader:
             # no need for another CAPTCHAs
             self.stop_captcha.set()
             if self.isCaptcha:
-                utils.print_captcha_status(
-                    "All downloads started, no need to solve another CAPTCHAs..", self.parts)
+                self.captcha_solver.log("All downloads started, no need to solve another CAPTCHAs…")
             else:
-                utils.print_captcha_status(
-                    "All downloads started, no need to solve another direct links..", self.parts)
+                self.captcha_solver.log("All downloads started, no need to solve another direct links…")
 
         # 4. Wait for all downloads to finish
         success = True
@@ -357,27 +301,16 @@ class Downloader:
             if part.error:
                 success = False
 
-        # clear cli
-        sys.stdout.write("\033[{};{}H".format(
-            parts + CLI_STATUS_STARTLINE + 2, 0))
-        sys.stdout.write("\033[K")
-        sys.stdout.write("\033[?25h")  # show cursor
-        self.cli_initialized = False
+        self.stop_captcha.set()
+        self.stop_frontend.set()
+        if self.captcha_thread:
+            self.captcha_thread.join()
+        if self.frontend_thread:
+            self.frontend_thread.join()
 
         # result end status
         if not success:
-            print(colors.red("Failure of one or more downloads, exiting"))
+            self.log("Failure of one or more downloads, exiting", level=LogLevel.ERROR)
             sys.exit(1)
 
-        elapsed = time.time() - started
-        # speed in bytes per second:
-        speed = (total_size - previously_downloaded) / elapsed if elapsed > 0 else 0
-        print(colors.green("All downloads finished"))
-        print("Stats: Downloaded {}{} MB in {} (average speed {} MB/s)".format(
-            round((total_size - previously_downloaded) / 1024**2, 2),
-            "" if previously_downloaded == 0 else (
-                "/"+str(round(total_size / 1024**2, 2))
-            ),
-            str(timedelta(seconds=round(elapsed))),
-            round(speed / 1024**2, 2)
-        ))
+        self.log("All downloads successfully finished", level=LogLevel.SUCCESS)

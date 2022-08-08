@@ -1,74 +1,96 @@
+from abc import abstractmethod
 import threading
 import time
+from typing import Dict
 import requests
 from PIL import Image
 from io import BytesIO
+from uldlib.frontend import Frontend
+
+from uldlib.utils import LogLevel
 
 
-def tkinter_user_prompt(img_url, print_func, stop_event: threading.Event = None):
-    """Display captcha from given URL and ask user for input in GUI window.
+class CaptchaSolver():
+    frontend: Frontend
 
-        Arguments:
-            img_url (str): URL of the image with CAPTCHA
+    def __init__(self, frontend: Frontend):
+        self.frontend = frontend
 
-        Returns:
-            str: User answer to the CAPTCHA
-    """
-    import tkinter as tk
-    from PIL import ImageTk
+    def log(self, msg: str, level: LogLevel = LogLevel.INFO):
+        self.frontend.captcha_log(msg, level)
 
-    root = tk.Tk()
-    root.focus_force()
-    root.title("Opiš kód z obrázku")
-    # use width x height + x_offset + y_offset (no spaces!)
-    root.geometry("300x140")
+    def stats(self, stats: Dict[str, int]):
+        self.frontend.captcha_stats(stats)
 
-    def disable_event():
+    @abstractmethod
+    def solve(self, img_url: str, stop_event: threading.Event = None) -> str:
         pass
 
-    root.protocol("WM_DELETE_WINDOW", disable_event)
 
-    u = requests.get(img_url)
-    raw_data = u.content
+class ManualInput(CaptchaSolver):
+    """Display captcha from given URL and ask user for input in GUI window."""
 
-    im = Image.open(BytesIO(raw_data))
-    photo = ImageTk.PhotoImage(im)
-    label = tk.Label(image=photo)
-    label.image = photo
-    label.pack()
+    def __init__(self, frontend):
+        super().__init__(frontend)
 
-    entry = tk.Entry(root)
-    entry.pack()
-    entry.bind('<Return>', lambda event: root.quit())
-    entry.focus()
+    def solve(self, img_url: str, stop_event: threading.Event = None) -> str:
+        import tkinter as tk
+        from PIL import ImageTk
 
-    tk.Button(root, text='Send', command=root.quit).pack()
+        root = tk.Tk()
+        root.focus_force()
+        root.title("Opiš kód z obrázku")
+        # use width x height + x_offset + y_offset (no spaces!)
+        root.geometry("300x140")
 
-    # Closing of the window separated to thread because it can be closed by
-    # the user input (done==True) or by the terminating application (stop_event)
-    done = False
+        def disable_event():
+            pass
 
-    def stop_func():
-        while True:
-            if done or (stop_event and stop_event.is_set()):
-                break
-            time.sleep(0.1)
-        print_func("Closing tkinter window, wait…")
-        root.quit()
+        root.protocol("WM_DELETE_WINDOW", disable_event)
 
-    stop_thread = threading.Thread(target=stop_func)
-    stop_thread.start()
-    root.mainloop()  # Wait for user input
+        u = requests.get(img_url)
+        raw_data = u.content
 
-    value = entry.get()
-    done = True
-    stop_thread.join()
-    root.destroy()
-    return value
+        im = Image.open(BytesIO(raw_data))
+        photo = ImageTk.PhotoImage(im)
+        label = tk.Label(image=photo)
+        label.image = photo
+        label.pack()
+
+        entry = tk.Entry(root)
+        entry.pack()
+        entry.bind('<Return>', lambda event: root.quit())
+        entry.focus()
+
+        tk.Button(root, text='Send', command=root.quit).pack()
+
+        # Closing of the window separated to thread because it can be closed by
+        # the user input (done==True) or by the terminating application (stop_event)
+        done = False
+
+        def stop_func():
+            while True:
+                if done or (stop_event and stop_event.is_set()):
+                    break
+                time.sleep(0.1)
+            self.log("Closing tkinter window, wait…")
+            root.quit()
+
+        stop_thread = threading.Thread(target=stop_func)
+        stop_thread.start()
+        root.mainloop()  # Wait for user input
+
+        value = entry.get()
+        done = True
+        stop_thread.join()
+        root.destroy()
+        return value
 
 
-class AutoReadCaptcha:
-    def __init__(self, model_path, model_url, print_func=print):
+class AutoReadCaptcha(CaptchaSolver):
+    def __init__(self, model_path, model_url, frontend):
+        super().__init__(frontend)
+
         from urllib.request import urlretrieve
         import os
         import tflite_runtime.interpreter as tflite
@@ -80,20 +102,17 @@ class AutoReadCaptcha:
             readsofar = blocknum * block_size
             if total_size > 0:
                 percent = readsofar * 1e2 / total_size
-                s = "\r%5.1f%% %*d / %d" % (
-                    percent, len(str(total_size)), readsofar, total_size)
-                print_func(s, end="")
-                if readsofar >= total_size:  # near the end
-                    print_func(flush=True)
+                self.log("Downloading model from %s: %5.1f%% %*d / %d" % (
+                    model_url, percent, len(str(total_size)), readsofar, total_size))
             else:  # total size is unknown
-                print_func("read %d" % (readsofar,), flush=True)
+                self.log("Downloading model from %s: read %d" % (model_url, readsofar))
 
         if not os.path.exists(model_path):
-            print_func(f"Downloading model from {model_url}")
+            self.log(f"Downloading model from {model_url}")
             # download into temp model in order to detect incomplete downloads
             model_temp_path = f"{model_path}.tmp"
             urlretrieve(model_url, model_temp_path, reporthook)
-            print_func("Downloading of the model finished")
+            self.log("Downloading of the model finished")
 
             # rename temp model
             os.rename(model_temp_path, model_path)
@@ -101,13 +120,13 @@ class AutoReadCaptcha:
         model_content = open(model_path, "rb").read()
         self.interpreter = tflite.Interpreter(model_content=model_content)
 
-    def __call__(self, img_url, print_func, stop_event=None):
+    def solve(self, img_url, stop_event=None) -> str:
         # stop_event not used, because tflite interpreter is hard to cancel (but is is quick)
         import numpy as np
 
         interpreter = self.interpreter
 
-        print_func("Auto solving CAPTCHA")
+        self.log("Auto solving CAPTCHA")
 
         u = requests.get(img_url)
         raw_data = u.content
@@ -149,5 +168,5 @@ class AutoReadCaptcha:
             return "".join(result)
 
         decoded_label = [decode(x) for x in labels_indices][0]
-        print_func(f"CAPTCHA auto solved as '{decoded_label}'")
+        self.log(f"CAPTCHA auto solved as '{decoded_label}'")
         return decoded_label

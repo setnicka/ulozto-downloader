@@ -4,6 +4,7 @@ import signal
 from os import path
 from uldlib import downloader, captcha, __version__, __path__
 from uldlib.const import DEFAULT_CONN_TIMEOUT
+from uldlib.frontend import ConsoleFrontend
 
 
 def run():
@@ -25,15 +26,17 @@ def run():
 
     args = parser.parse_args()
 
+    # TODO: implement other frontends and allow to choose from them
+    frontend = ConsoleFrontend()
+
     if args.auto_captcha:
         model_path = path.join(__path__[0], "model.tflite")
         model_download_url = "https://github.com/JanPalasek/ulozto-captcha-breaker/releases/download/v2.2/model.tflite"
-        captcha_solve_fnc = captcha.AutoReadCaptcha(
-            model_path, model_download_url)
+        solver = captcha.AutoReadCaptcha(model_path, model_download_url, frontend)
     else:
-        captcha_solve_fnc = captcha.tkinter_user_prompt
+        solver = captcha.ManualInput(frontend)
 
-    d = downloader.Downloader(captcha_solve_fnc)
+    d = downloader.Downloader(frontend, solver)
 
     # Register sigint handler
     def sigint_handler(sig, frame):
