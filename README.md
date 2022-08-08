@@ -36,6 +36,9 @@ s webovým rozhraním.
 
 ## Instalace
 
+### [Android - Termux](doc/install.md)
+
+
 Nejjednodušší je využít verzi uveřejněnou na [PyPi](https://pypi.org/project/ulozto-downloader/):
 
 ```shell
@@ -48,6 +51,9 @@ louskání CAPTCHA kódů (protože repozitář PyPI zakazuje přímé URL depen
 ### Instalace TORu
 
 Program vyžaduje spustitelný tor, protože používá stem a očekává ho v `$PATH`.
+```shell
+$ pip install tor
+```
 
 ### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
 
