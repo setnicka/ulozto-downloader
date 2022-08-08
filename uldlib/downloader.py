@@ -123,13 +123,9 @@ class Downloader:
     def _download_part(self, part: DownloadPart):
         try:
             self._download_part_internal(part)
-            part.success = True
         except Exception as e:
-            utils.print_part_status(part.id, colors.red(
-                f"Error: {e}"
-            ))
             part.exception = e
-            part.success = False
+            part.set_status(f"Error: {e}", error=True)
 
     def _download_part_internal(self, part: DownloadPart):
         """Download given part of the download.
@@ -141,14 +137,16 @@ class Downloader:
         writer = part.writer
         id = part.id
 
-        part.started = time.time()
-        part.now_downloaded = 0
+        part.lock.acquire()
+        part.started = True
+        part.start_time = time.time()
+        part.lock.release()
 
         while True:
             if self.stop_download.is_set():
                 return
 
-            utils.print_part_status(id, "Starting download")
+            part.set_status("Starting download")
             # Note the stream=True parameter
             r = requests.get(part.download_url, stream=True, allow_redirects=True, headers={
                 "Range": "bytes={}-{}".format(writer.pfrom + writer.written, writer.pto),
@@ -158,53 +156,36 @@ class Downloader:
             if r.status_code != 429:
                 break
 
-            utils.print_part_status(id, colors.yellow(
-                "Status code 429 Too Many Requests returned... will try again in few seconds"))
+            part.set_status("Status code 429 Too Many Requests returned… will try again in few seconds", warning=True)
             time.sleep(5)
 
         if r.status_code != 206 and r.status_code != 200:
-            utils.print_part_status(id, colors.red(
-                f"Status code {r.status_code} returned: {writer.pfrom + writer.written}/{writer.pto}"))
-            sys.exit(1)
+            part.set_status(f"Status code {r.status_code} returned: {writer.pfrom + writer.written}/{writer.pto}", error=True)
+            return
+
+        part.set_status("")
 
         # reimplement as multisegment write file class
         for chunk in r.iter_content(chunk_size=DOWN_CHUNK_SIZE):
             if chunk:  # filter out keep-alive new chunks
                 writer.write(chunk)
-                part.now_downloaded += len(chunk)
-                elapsed = time.time() - part.started
+
+                part.lock.acquire()
+                part.d_now += len(chunk)
+                part.d_total += len(chunk)
+                part.lock.release()
 
                 if self.stop_download.is_set():
                     # TODO: cancel the request when urllib3/requests will be able to do so
                     # (now r.close() would be blocking until all chunks downloaded)
                     return
 
-                # Print status line downloaded and speed
-                # speed in bytes per second:
-                speed = part.now_downloaded / elapsed if elapsed > 0 else 0
-                # remaining time in seconds:
-                remaining = (writer.size - writer.written) / speed if speed > 0 else 0
-
-                utils.print_part_status(id, "{:.2f}%\t{:.2f}/{:.2f} MB\tspeed: {:.2f} KB/s\telapsed: {}\tremaining: {}".format(
-                    round(writer.written / writer.size * 100, 2),
-                    round(writer.written / 1024**2,
-                          2), round(writer.size / 1024**2, 2),
-                    round(speed / 1024, 2),
-                    str(timedelta(seconds=round(elapsed))),
-                    str(timedelta(seconds=round(remaining))),
-                ))
-
         # download end status
         r.close()
-        elapsed = time.time() - part.started
-        utils.print_part_status(id, colors.green("Successfully downloaded {}{} MB in {} (speed {} KB/s)".format(
-            round(part.now_downloaded / 1024**2, 2),
-            "" if part.now_downloaded == writer.written else (
-                "/"+str(round(writer.written / 1024**2, 2))
-            ),
-            str(timedelta(seconds=round(elapsed))),
-            round(part.now_downloaded / elapsed / 1024, 2) if elapsed > 0 else 0
-        )))
+        part.lock.acquire()
+        part.completed = True
+        part.completion_time = time.time()
+        part.lock.release()
 
         # close part file files
         writer.close()
@@ -308,9 +289,9 @@ class Downloader:
         # fill placeholder before download started
         for part in downloads:
             if page.isDirectDownload:
-                utils.print_part_status(part.id, "Waiting for direct link...")
+                part.set_status("Waiting for direct link…")
             else:
-                utils.print_part_status(part.id, "Waiting for CAPTCHA...")
+                part.set_status("Waiting for CAPTCHA…")
 
         # Prepare queue for recycling download URLs
         self.download_url_queue = Queue(maxsize=0)
@@ -340,8 +321,8 @@ class Downloader:
             id = part.id
 
             if part.writer.written == part.writer.size:
-                utils.print_part_status(id, colors.green(
-                    "Already downloaded from previous run, skipping"))
+                part.completed = True
+                part.set_status("Already downloaded from previous run, skipping")
                 page.alreadyDownloaded += 1
                 continue
 
@@ -373,7 +354,7 @@ class Downloader:
         for (t, part) in zip(self.threads, downloads):
             while t.is_alive():
                 t.join(1)
-            if not part.success:
+            if part.error:
                 success = False
 
         # clear cli
