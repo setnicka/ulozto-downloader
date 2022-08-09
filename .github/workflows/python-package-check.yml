@@ -44,3 +44,5 @@ jobs:
       run: python setup.py sdist bdist_wheel
     - name: 📦 local install
       run: pip install dist/*.whl
+    - name: test runnable
+      run: ulozto-downloader -h
