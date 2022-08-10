@@ -4,4 +4,3 @@ ansicolors
 numpy
 pysocks
 stem
-tflite-runtime
