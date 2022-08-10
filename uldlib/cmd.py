@@ -14,12 +14,14 @@ def run():
     )
     parser.add_argument('url', metavar='URL', type=str,
                         help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
-    parser.add_argument('--parts', metavar='N', type=int, default=10,
+    parser.add_argument('--parts', metavar='N', type=int, default=20,
                         help='Number of parts that will be downloaded in parallel')
     parser.add_argument('--output', metavar='DIRECTORY',
                         type=str, default="./", help='Target directory')
-    parser.add_argument('--auto-captcha', default=False, action="store_true",
-                        help='Try to solve captchas automatically using TensorFlow')
+    parser.add_argument('--auto-captcha', default=True, action="store_true",
+                        help='Try to solve CAPTCHAs automatically using TensorFlow')
+    parser.add_argument('--no-auto-captcha', default=True, action="store_false", dest="auto_captcha",
+                        help='Disable solving CAPTCHAs using TensorFlow')
     parser.add_argument('--conn-timeout', metavar='SEC', default=DEFAULT_CONN_TIMEOUT, type=int,
                         help='Set connection timeout for TOR sessions in seconds')
     parser.add_argument('--version', action='version', version=__version__)
