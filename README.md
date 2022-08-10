@@ -25,7 +25,8 @@ s webovým rozhraním.
     minutu, ale stejný link je možné používat po dostahování původní části
     opakovaně pro stahování dalších částí
 * Umí navazovat přerušená stahování (pokud se zachová stejný počet částí)
-* Nyní stahuje přímo do jednoho souboru, místo dělení na části a potom spojování
+* Stahuje přímo do finálního souboru, jednotlivá stahování zapisují na správné
+  místo v souboru (než program ohlásí dostahováno, je soubor neúplný)
 * Konzolový status panel se statistikou úspěšnosti při získávání linků
 * Celkový průběh staženo / okamžitá rychlost stahování ve druhém řádku status panelu (save progress monitor)
 * Cache soubor download linků pro pokračování nebo opětovné stažení, po restartu se bez nového
@@ -36,43 +37,37 @@ s webovým rozhraním.
 
 ## Instalace
 
-### [Android - Termux](doc/install.md)
-
-
 Nejjednodušší je využít verzi uveřejněnou na [PyPi](https://pypi.org/project/ulozto-downloader/):
 
 ```shell
 $ pip3 install --upgrade ulozto-downloader
 ```
 
-Toto instaluje všechny dependence **vyjma TensorFlow Lite** pro automatické
-louskání CAPTCHA kódů (protože repozitář PyPI zakazuje přímé URL dependence).
+Toto by mělo instalovat i všechny dependence (včetně TensorFlow Lite pro
+automatické louskání kódů).
 
 ### Instalace TORu
 
 Program vyžaduje spustitelný tor, protože používá stem a očekává ho v `$PATH`.
-```shell
-$ pip install tor
-```
+
+* Na Linuxu stačí:
+
+  ```shell
+  $ sudo apt install tor
+  # nebo...
+  $ yum install tor
+  # nebo podle vašeho balíčkovacího systému
+  ```
+
+* Na Windows lze instalovat [TorBrowser](https://www.torproject.org/download/)
+  a dostat `tor.exe` do `%PATH%`
 
 ### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
 
-Na stránce [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python) si
-v tabulce vyberte správnou verzi podle vašeho systému a verze Pythonu (zjistíte
-zavoláním `python3 -V`), zkopírujte URL a instalujte pomocí:
-
-```shell
-$ pip3 install <URL>
-# Například tedy pro Python 3.8 na x86-64 Linuxu:
-$ pip3 install https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp38-cp38-linux_x86_64.whl
-```
-Na linuxu je mozné pro novější **python 3.9.x** zkompilovat **tflite_runtime-2.6.0-cp39-cp39-linux_x86_64.whl** a pak nainstalovat pomocí:
-```shell
-pip install tflite_runtime-2.6.0-cp39-cp39-linux_x86_64.whl
-```
-Tento soubor pro python 3.9, linux x86-64 a GLIBC_2.33 je nyní také součástí
-repozitáře. Pokud potřebujete starší verzi GLIBC (například pro Debian), tak
-můžete zkusit následovat postup v <https://github.com/google-coral/pycoral/issues/6>
+Mělo by se instaloval automaticky přes `pip`. Pokud se to nepovede,
+postupujte podle instrukcí na stránce [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python),
+kde si buď instalujte balík do systému a nebo si stáhněte z odkazu správný Wheel
+soubor podle své verze Pythonu (zjistíte zavoláním `python3 -V`).
 
 ### Instalace Tkinter (ruční opisování CAPTCHA)
 
@@ -83,18 +78,22 @@ potřeba instalovat ručně).
 `python3-tk` (případně následujte instrukce na
 [webu Tk](https://tkdocs.com/tutorial/install.html)).
 
+## Instalace na dalších platformách
+
+### [Android - Termux](doc/install.md)
+
 ## Použití
 
-Pro volbu automatického čtení CAPTCHA kódů slouží přepínač `--auto-captcha`,
-pro volbu počtu částí slouží přepínač `--parts N`.
+Od verze 3.0 je v defaultu aktivované automatické louskání CAPTCHA kódů pomocí
+TensorFlow. Pokud byste ho chtěli vypnout, použijte přepínač `--no-auto-captcha`.
+Pro volbu počtu částí slouží přepínač `--parts N`.
 
 ```shell
-$ ulozto-downloader --auto-captcha --parts 15 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
+$ ulozto-downloader --parts 50 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
 ```
 
 ![Ukázka stahování](https://raw.githubusercontent.com/setnicka/ulozto-downloader/master/example-screenshot.png)
 
 Při využití automatického louskání doporučuji využít velký počet částí, klidně
-50 (spustíte `ulozto-downloader` a necháte ho pracovat, on si jednou za minutu
-louskne další dva stahovací linky a postupně navyšuje počet najednou stahovaných
-částí).
+50 (spustíte `ulozto-downloader` a necháte ho pracovat, on si postupně louskne
+další stahovací linky a postupně navyšuje počet najednou stahovaných částí).
