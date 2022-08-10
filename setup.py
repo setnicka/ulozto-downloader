@@ -5,7 +5,7 @@ import setuptools  # noqa
 
 from uldlib import __version__
 
-with open("README.md", "r",encoding='utf8') as fh:
+with open("README.md", "r", encoding='utf8') as fh:
     long_description = fh.read()
 
 setup(
@@ -26,6 +26,7 @@ setup(
         'numpy',
         'pysocks',
         'stem',
+        'tflite-runtime',
     ],
     python_requires='>=3.7',
     packages=setuptools.find_packages(),
