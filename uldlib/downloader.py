@@ -241,7 +241,7 @@ class Downloader:
 
         self.frontend_thread = threading.Thread(
             target=self.frontend.run,
-            args=(info, downloads, self.stop_frontend)
+            args=(info, downloads, self.stop_frontend, self.terminate)
         )
         self.frontend_thread.start()
 

@@ -42,6 +42,8 @@ def run():
 
     # Register sigint handler
     def sigint_handler(sig, frame):
+        if d.terminating:
+            return  # Already terminating
         d.terminate()
         print('Program terminated.')
         sys.exit(1)

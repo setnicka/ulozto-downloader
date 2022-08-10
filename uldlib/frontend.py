@@ -1,6 +1,6 @@
-
 from abc import abstractmethod
 from datetime import timedelta
+from traceback import print_exc
 import colors
 import os
 import sys
@@ -41,7 +41,7 @@ class Frontend():
         pass
 
     @abstractmethod
-    def run(self, parts: List[DownloadPart], stop_event: threading.Event):
+    def run(self, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
         pass
 
 
@@ -106,7 +106,20 @@ class ConsoleFrontend(Frontend):
             return colors.green(text)
         return text
 
-    def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event):
+    def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
+        try:
+            self._loop(info, parts, stop_event)
+        except Exception:
+            if self.cli_initialized:
+                y = info.parts + CLI_STATUS_STARTLINE + 4
+                sys.stdout.write("\033[{};{}H".format(y, 0))
+                sys.stdout.write("\033[?25h")  # show cursor
+                self.cli_initialized = False
+                print("")
+            print_exc()
+            terminate_func()
+
+    def _loop(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event):
         os.system('cls' if os.name == 'nt' else 'clear')
         sys.stdout.write("\033[?25l")  # hide cursor
         self.cli_initialized = True
@@ -124,6 +137,8 @@ class ConsoleFrontend(Frontend):
             (_, _, size) = part.get_frontend_status()
             s_start += size
         last_bps = [(s_start, t_start)]
+
+        y = 0
 
         while True:
             if stop_event.is_set():
