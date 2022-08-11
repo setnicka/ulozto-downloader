@@ -26,8 +26,10 @@ setup(
         'numpy',
         'pysocks',
         'stem',
-        'tflite-runtime',
     ],
+    extras_require={
+        "auto-captcha": ["tflite-runtime"],
+    },
     python_requires='>=3.7',
     packages=setuptools.find_packages(),
     classifiers=[

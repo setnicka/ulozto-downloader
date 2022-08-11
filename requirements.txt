@@ -4,4 +4,4 @@ ansicolors
 numpy
 pysocks
 stem
-tflite-runtime
+tflite-runtime[auto-captcha]

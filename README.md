@@ -37,14 +37,16 @@ s webovým rozhraním.
 
 ## Instalace
 
-Nejjednodušší je využít verzi uveřejněnou na [PyPi](https://pypi.org/project/ulozto-downloader/):
+Nejjednodušší je využít verzi uveřejněnou na [PyPI](https://pypi.org/project/ulozto-downloader/).
+Pokud máte platformu, pro který existuje na PyPI validní balíček
+[`tflite-runtime`](https://pypi.org/project/tflite-runtime/), můžete rovnou
+instalovat speciální target s `[auto-captcha]` a ulehčit si tak instalaci
+TensorFlow Lite.
 
 ```shell
 $ pip3 install --upgrade ulozto-downloader
+$ pip3 install --upgrade ulozto-downloader[auto-captcha]  # <-- doporučeno
 ```
-
-Toto by mělo instalovat i všechny dependence (včetně TensorFlow Lite pro
-automatické louskání kódů).
 
 ### Instalace TORu
 
@@ -64,7 +66,8 @@ Program vyžaduje spustitelný tor, protože používá stem a očekává ho v `
 
 ### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
 
-Mělo by se instaloval automaticky přes `pip`. Pokud se to nepovede,
+Pokud jste ho instalovali automaticky přes pip, již netřeba nic řešit. Pokud pro
+vaší platformu není dostupný na [PyPI](https://pypi.org/project/tflite-runtime/),
 postupujte podle instrukcí na stránce [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python),
 kde si buď instalujte balík do systému a nebo si stáhněte z odkazu správný Wheel
 soubor podle své verze Pythonu (zjistíte zavoláním `python3 -V`).
