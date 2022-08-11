@@ -12,6 +12,7 @@ from uldlib.utils import LogLevel
 
 class CaptchaSolver():
     frontend: Frontend
+    cannot_solve: bool = False
 
     def __init__(self, frontend: Frontend):
         self.frontend = frontend
@@ -24,6 +25,17 @@ class CaptchaSolver():
 
     @abstractmethod
     def solve(self, img_url: str, stop_event: threading.Event = None) -> str:
+        pass
+
+
+class Dummy(CaptchaSolver):
+    """Dumy solver when tflite_runtime nor tkinter available."""
+
+    def __init__(self, frontend):
+        super().__init__(frontend)
+        self.cannot_solve = True
+
+    def solve(self, img_url, stop_event):
         pass
 
 

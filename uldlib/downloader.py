@@ -208,6 +208,10 @@ class Downloader:
                 self.log("CAPTCHA protected download - CAPTCHA challenges will be displayed")
                 info.download_type = "CAPTCHA protected download"
 
+            if self.isCaptcha and self.captcha_solver.cannot_solve:
+                self.log("Cannot solve CAPTCHAs, no solver available. Terminating", level=LogLevel.ERROR)
+                sys.exit(1)
+
             self.captcha_download_links_generator = page.captcha_download_links_generator(
                 solver=self.captcha_solver, stop_event=self.stop_captcha,
             )

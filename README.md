@@ -84,9 +84,16 @@ potřeba instalovat ručně).
 
 ## Použití
 
-Od verze 3.0 je v defaultu aktivované automatické louskání CAPTCHA kódů pomocí
-TensorFlow. Pokud byste ho chtěli vypnout, použijte přepínač `--no-auto-captcha`.
-Pro volbu počtu částí slouží přepínač `--parts N`.
+Od verze 3.1 je v defaultu aktivovaná autodetekce TensorFlow a pokud je instalované,
+tak se použije pro automatické louskání louskání CAPTCHA kódů, jinak se vypisuje
+ruční opisování. Pro vynucení chování můžete použít přepínače:
+
+* `--auto-captcha` vynutí použití TensorFlow Lite
+* `--manual-captcha` vynutí použití manuálního opisování
+
+Pokud není dostupný žádný solver, lze stahovat jen soubory bez CAPTCHA.
+
+Pro volbu počtu částí slouží přepínač `--parts N`, default je 20 částí.
 
 ```shell
 $ ulozto-downloader --parts 50 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
