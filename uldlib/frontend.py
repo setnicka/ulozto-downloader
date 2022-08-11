@@ -23,6 +23,10 @@ class DownloadInfo:
 
 
 class Frontend():
+    supports_prompt: bool
+
+    def __init__(self, supports_prompt: bool):
+        self.supports_prompt = supports_prompt
 
     @abstractmethod
     def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO):
@@ -45,6 +49,29 @@ class Frontend():
         pass
 
 
+class NoOpFrontend(Frontend):
+
+    def __init__(self, supports_prompt=False):
+        super().__init__(supports_prompt)
+
+    def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO):
+        pass
+
+    def captcha_stats(self, stats: Dict[str, int]):
+        pass
+
+    def main_log(self, msg: str, level: LogLevel = LogLevel.INFO):
+        pass
+
+    def prompt(self, msg: str, level: LogLevel = LogLevel.INFO) -> str:
+        if not self.supports_prompt:
+            raise Exception('Prompt not supported')
+        return ""
+
+    def run(self, parts: List[DownloadPart], stop_event: threading.Event):
+        pass
+
+
 class ConsoleFrontend(Frontend):
     cli_initialized: bool
 
@@ -54,6 +81,7 @@ class ConsoleFrontend(Frontend):
     last_captcha_stats: Dict[str, int]
 
     def __init__(self):
+        super().__init__(supports_prompt=True)
         self.cli_initialized = False
         self.last_log = ("", LogLevel.INFO)
         self.last_captcha_log = ("", LogLevel.INFO)
@@ -128,8 +156,8 @@ class ConsoleFrontend(Frontend):
         print(colors.blue("URL:\t\t") + info.url)
         print(colors.blue("Download type:\t") + info.download_type)
         print(colors.blue("Size / parts: \t") +
-              colors.bold(f"{round(info.total_size / 1024**2, 2)}MB => " +
-              f"{info.parts} x {round(info.part_size / 1024**2, 2)}MB"))
+              colors.bold(f"{round(info.total_size / 1024 ** 2, 2)}MB => " +
+                          f"{info.parts} x {round(info.part_size / 1024 ** 2, 2)}MB"))
 
         t_start = time.time()
         s_start = 0
@@ -222,10 +250,10 @@ class ConsoleFrontend(Frontend):
         # speed in bytes per second:
         speed = (s - s_start) / elapsed if elapsed > 0 else 0
         print(colors.blue("Statistics:\t") + "Downloaded {}{} MB in {} (average speed {} MB/s)".format(
-            round((s - s_start) / 1024**2, 2),
+            round((s - s_start) / 1024 ** 2, 2),
             "" if s_start == 0 else (
-                "/"+str(round(info.total_size / 1024**2, 2))
+                    "/" + str(round(info.total_size / 1024 ** 2, 2))
             ),
             str(timedelta(seconds=round(elapsed))),
-            round(speed / 1024**2, 2)
+            round(speed / 1024 ** 2, 2)
         ))

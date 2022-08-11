@@ -26,6 +26,10 @@ setup(
         'numpy',
         'pysocks',
         'stem',
+        'uvicorn',
+        'fastapi',
+        'starlette',
+        'psutil'
     ],
     extras_require={
         "auto-captcha": ["tflite-runtime"],

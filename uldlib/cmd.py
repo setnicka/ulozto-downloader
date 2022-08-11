@@ -1,12 +1,13 @@
 import argparse
 import importlib.util
-import sys
 import signal
 import os
+import sys
 from os import path
-from uldlib import downloader, captcha, __version__, __path__
+from uldlib import downloader, captcha, __version__, __path__, const, utils
 from uldlib.const import DEFAULT_CONN_TIMEOUT
 from uldlib.frontend import ConsoleFrontend
+from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
 
 
@@ -56,9 +57,8 @@ def run():
             frontend.main_log('ERROR: --auto-captcha used but tflite_runtime not available', level=LogLevel.ERROR)
             sys.exit(1)
 
-        model_path = path.join(__path__[0], "model.tflite")
-        model_download_url = "https://github.com/JanPalasek/ulozto-captcha-breaker/releases/download/v2.2/model.tflite"
-        solver = captcha.AutoReadCaptcha(model_path, model_download_url, frontend)
+        model_path = path.join(__path__[0], const.MODEL_FILENAME)
+        solver = captcha.AutoReadCaptcha(model_path, const.MODEL_DOWNLOAD_URL, frontend)
     elif args.manual_captcha:
         if not tkinter_available:
             frontend.main_log('ERROR: --manual-captcha used but tkinter not available', level=LogLevel.ERROR)
@@ -67,12 +67,13 @@ def run():
         solver = captcha.ManualInput(frontend)
     else:
         solver = captcha.Dummy(frontend)
-
     # enables ansi escape characters in terminal on Windows
     if os.name == 'nt':
         os.system("")
-        
-    d = downloader.Downloader(frontend, solver)
+
+    tor = TorRunner(args.output)
+    d = downloader.Downloader(tor, frontend, solver)
+
 
     # Register sigint handler
     def sigint_handler(sig, frame):
@@ -84,5 +85,12 @@ def run():
 
     signal.signal(signal.SIGINT, sigint_handler)
 
-    d.download(args.url, args.parts, args.output, args.conn_timeout)
-    d.terminate()
+    try:
+        d.download(args.url, args.parts, args.output, args.conn_timeout)
+        # remove resume .udown file
+        udown_file = args.output + const.DOWNPOSTFIX
+        if os.path.exists(udown_file):
+            print(f"Delete file: {udown_file}")
+            os.remove(udown_file)
+    finally:
+        d.terminate()

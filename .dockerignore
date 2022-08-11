@@ -1,0 +1,14 @@
+.idea/
+*.iml
+.git/
+venv/
+data/
+download/
+testdata/
+tmp/
+.gitignore
+*.md
+*.png
+*.avi
+*.mp4
+*.whl

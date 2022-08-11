@@ -1,19 +1,25 @@
 import socket
+import sys
+
 import stem.process
 from stem.control import Controller
+
 import os
 import uuid
 import shutil
 import re
 
+from uldlib import const
+
 
 class TorRunner:
     """Running stem tor instance"""
-    ddir = ""
+    ddir: str
 
-    def __init__(self):
+    def __init__(self, ddir: str = ""):
+        self.torRunning = False
         uid = str(uuid.uuid4())
-        self.ddir = f"tor_data_dir_{uid}"
+        self.ddir = os.path.join(ddir, f"{const.TOR_DATA_DIR_PREFIX}{uid}")
 
     def _port_not_use(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -30,6 +36,21 @@ class TorRunner:
                 ports.append(at)
             at += 1
         return (ports[0], ports[1])
+
+    def launch(self, log_func):
+        if not self.torRunning:
+            print("Starting TOR...")
+            # tor started after cli initialized
+            try:
+                self.start(log_func=log_func)
+                self.torRunning = True
+
+            except OSError as e:
+                print(f"Tor start failed: {e}, exiting.. try run program again..")
+                # remove tor data
+                if os.path.exists(self.ddir):
+                    shutil.rmtree(self.ddir, ignore_errors=True)
+                sys.exit(1)
 
     def start(self, log_func):
         os.mkdir(self.ddir)
@@ -65,6 +86,9 @@ class TorRunner:
         if hasattr(self, "process"):
             print("Terminating tor..")
             self.process.terminate()
+            if self.process.wait(10) is None:
+                print("Killing zombie tor process.")
+                self.process.kill()
 
         try:
             self.process.wait(5)

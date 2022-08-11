@@ -6,6 +6,8 @@ import threading
 import time
 from typing import List, Type
 
+from colors import colors
+
 from uldlib.captcha import CaptchaSolver
 from uldlib.const import DOWNPOSTFIX, DOWN_CHUNK_SIZE, DEFAULT_CONN_TIMEOUT
 from uldlib.frontend import DownloadInfo, Frontend
@@ -31,15 +33,20 @@ class Downloader:
     stop_captcha: threading.Event
 
     download_url_queue: Queue
+    #file_data_queue: mp.Queue
     parts: int
+    tor: TorRunner
 
-    def __init__(self, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+    def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
         self.frontend = frontend
         self.log = frontend.main_log
         self.captcha_solver = captcha_solver
 
         self.cli_initialized = False
         self.conn_timeout = None
+        #self.cli_mode = cli_mode
+        #self.file_data_queue = file_data_queue
+        self.tor = tor
 
         self.stop_download = threading.Event()
         self.stop_captcha = threading.Event()
@@ -170,23 +177,27 @@ class Downloader:
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            tor = TorRunner()
-            page = Page(url, target_dir, parts, tor, self.conn_timeout)
+            page = Page(url, target_dir, parts, self.tor, self.conn_timeout)
             page.parse()
 
         except RuntimeError as e:
             self.log('Cannot download file: ' + str(e), error=True)
-            sys.exit(1)
+            raise e
 
         # Do check - only if .udown status file not exists get question
         output_filename = os.path.join(target_dir, page.filename)
-        if os.path.isfile(output_filename) and not os.path.isfile(output_filename+DOWNPOSTFIX):
-            answer = self.frontend.prompt(
-                "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename),
-                level=LogLevel.WARNING
-            )
-            if answer != 'y':
-                sys.exit(1)
+        # .udown file is always present in cli_mode = False
+        if os.path.isfile(output_filename) and not os.path.isfile(output_filename + DOWNPOSTFIX):
+            if self.frontend.supports_prompt:
+                answer = self.frontend.prompt(
+                    "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename), level=LogLevel.WARNING)
+                if answer != 'y':
+                    sys.exit(1)
+            else:
+                # TODO: do not overwrite file, but serve it instead
+                print(colors.yellow(
+                    "WARNING: File '{}' already exists, but .udown file not present."
+                    "File will be overwritten..".format(output_filename)), end="")
 
         info = DownloadInfo()
         info.filename = page.filename
@@ -291,7 +302,7 @@ class Downloader:
 
         if self.isLimited:
             # no need for another CAPTCHAs
-            self.stop_captcha.set()
+            # self.stop_captcha.set() # this effectively shutdowns fastapi server if triggered
             if self.isCaptcha:
                 self.captcha_solver.log("All downloads started, no need to solve another CAPTCHAs…")
             else:
@@ -315,6 +326,6 @@ class Downloader:
         # result end status
         if not success:
             self.log("Failure of one or more downloads, exiting", level=LogLevel.ERROR)
-            sys.exit(1)
+            return
 
         self.log("All downloads successfully finished", level=LogLevel.SUCCESS)

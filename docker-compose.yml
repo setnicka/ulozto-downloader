@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  ulozto-streamer:
+    image: spirecz/ulozto-streamer:latest
+    build: .
+    container_name: ulozto-streamer
+    ports:
+      - "8000:8000"
+    volumes:
+      - "download:/download"
+      - "data:/data"
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+volumes:
+  download:
+  data:

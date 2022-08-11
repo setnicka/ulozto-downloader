@@ -201,7 +201,6 @@ class Page:
         """
 
         self.numTorLinks = 0
-        self.torRunning = False
         self.cacheEmpty = False
         self.linkCache = LinkCache(path.join(self.target_dir, self.filename))
 

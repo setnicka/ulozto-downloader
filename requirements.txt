@@ -5,3 +5,8 @@ numpy
 pysocks
 stem
 tflite-runtime[auto-captcha]
+setuptools
+uvicorn
+fastapi
+starlette
+psutil
