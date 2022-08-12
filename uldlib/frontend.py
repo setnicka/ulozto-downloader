@@ -62,8 +62,7 @@ class ConsoleFrontend(Frontend):
     def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO):
         self.last_captcha_log = (msg, level)
         if not self.cli_initialized:
-            sys.stdout.write(colors.blue(
-                "[Link solve]\t") + self._color(msg, level) + "\r")
+            sys.stdout.write(colors.blue("[Link solve]\t") + msg + "\r")
 
     def captcha_stats(self, stats: Dict[str, int]):
         self.last_captcha_stats = stats
