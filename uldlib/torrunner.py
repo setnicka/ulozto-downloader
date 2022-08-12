@@ -85,7 +85,7 @@ class TorRunner:
             self.process.terminate()
 
         if os.path.exists(self.ddir):
-            shutil.rmtree(self.ddir, ignore_errors=True)
+            shutil.rmtree(self.ddir, ignore_errors=False)
             print(f"Removed tor data dir: {self.ddir}")
 
     def __del__(self):
