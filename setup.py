@@ -26,6 +26,7 @@ setup(
         'numpy',
         'pysocks',
         'stem',
+        "appdirs"
     ],
     extras_require={
         "auto-captcha": ["tflite-runtime"],

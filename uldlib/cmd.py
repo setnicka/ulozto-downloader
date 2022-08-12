@@ -34,7 +34,7 @@ def run():
     frontend = ConsoleFrontend()
 
     tflite_available = importlib.util.find_spec('tflite_runtime')
-    fulltf_available = importlib.util.find_spec('tensorflow.lite')
+    fulltf_available = importlib.util.find_spec('tensorflow')
     tkinter_available = importlib.util.find_spec('tkinter')
 
     # Autodetection

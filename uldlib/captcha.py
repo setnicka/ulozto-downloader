@@ -105,7 +105,7 @@ class AutoReadCaptcha(CaptchaSolver):
         super().__init__(frontend)
 
         tflite_available = importlib.util.find_spec('tflite_runtime')
-        fulltf_available = importlib.util.find_spec('tensorflow.lite')
+        fulltf_available = importlib.util.find_spec('tensorflow')
 
         from urllib.request import urlretrieve
         import os

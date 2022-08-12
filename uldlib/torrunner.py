@@ -1,11 +1,29 @@
 import socket
 import stem.process
 from stem.control import Controller
+from appdirs import user_cache_dir
+from typing import List
 import os
 import uuid
 import shutil
 import re
+import threading
 
+class MultiTor:
+    """Run multiple instances of TorRunner in own threaded Tor army.."""
+
+    size: int
+    cache: str
+    tors: List[threading.Thread]
+
+    def __init__(self, size: int):
+        self.size = size
+        self.cache = user_cache_dir("py-multitor")
+        self.tors = []
+
+        #TODO create dirs for each tor and star each TOR instance in own thread
+
+    
 
 class TorRunner:
     """Running stem tor instance"""
