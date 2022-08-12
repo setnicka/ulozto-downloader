@@ -34,11 +34,12 @@ def run():
     frontend = ConsoleFrontend()
 
     tflite_available = importlib.util.find_spec('tflite_runtime')
+    fulltf_available = importlib.util.find_spec('tensorflow.lite')
     tkinter_available = importlib.util.find_spec('tkinter')
 
     # Autodetection
     if not args.auto_captcha and not args.manual_captcha:
-        if tflite_available:
+        if tflite_available or fulltf_available:
             frontend.main_log("[Autodetect] tflite_runtime available, using --auto-captcha")
             args.auto_captcha = True
         elif tkinter_available:
@@ -46,13 +47,13 @@ def run():
             args.manual_captcha = True
         else:
             frontend.main_log(
-                "[Autodetect] WARNING: No tflite_runtime and no tkinter available, cannot solve CAPTCHA (only direct download available)",
+                "[Autodetect] WARNING: No tflite_runtime or full tensorflow and no tkinter available, cannot solve CAPTCHA (only direct download available)",
                 level=LogLevel.WARNING
             )
 
     if args.auto_captcha:
-        if not tflite_available:
-            frontend.main_log('ERROR: --auto-captcha used but tflite_runtime not available', level=LogLevel.ERROR)
+        if not tflite_available and not fulltf_available:
+            frontend.main_log('ERROR: --auto-captcha used but tflite_runtime or full tensorflow not available', level=LogLevel.ERROR)
             sys.exit(1)
 
         model_path = path.join(__path__[0], "model.tflite")
