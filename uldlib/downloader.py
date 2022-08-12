@@ -61,7 +61,7 @@ class Downloader:
         self.stop_frontend.set()
         if self.frontend_thread:
             self.frontend_thread.join()
-
+        
     def _captcha_breaker(self, page, parts):
         msg = ""
         if page.isDirectDownload:
@@ -318,3 +318,6 @@ class Downloader:
             sys.exit(1)
 
         self.log("All downloads successfully finished", level=LogLevel.SUCCESS)
+        # need remove udown file
+        if os.path.isfile(output_filename+DOWNPOSTFIX):
+            os.remove(output_filename+DOWNPOSTFIX)
