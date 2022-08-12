@@ -170,7 +170,7 @@ class Downloader:
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            tor = TorRunner()
+            tor = TorRunner(0) #TODO reimplement to use MultiTor() class
             page = Page(url, target_dir, parts, tor, self.conn_timeout)
             page.parse()
 
