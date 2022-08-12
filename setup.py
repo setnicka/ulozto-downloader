@@ -9,13 +9,13 @@ with open("README.md", "r", encoding='utf8') as fh:
     long_description = fh.read()
 
 setup(
-    name='ulozto-downloader',
+    name='uld',
     version=__version__,
     license='MIT',
-    description='Uloz.to quick multiple sessions downloader.',
+    description='Uloz.to quick multiple sessions downloader. This is fork of original https://github.com/setnicka/ulozto-downloader for pre-release pull-requests',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author='Jiří Setnička and Vlado Driver',
+    author='Jiří Setnička, vladodriver and many others..',
     author_email='setnicka@seznam.cz',
     url='https://github.com/setnicka/ulozto-downloader',
     package_data={'': ['model.tflite']},
