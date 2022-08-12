@@ -9,7 +9,7 @@ with open("README.md", "r", encoding='utf8') as fh:
     long_description = fh.read()
 
 setup(
-    name='uld',
+    name='uld', #original name ulozto-downloader changed for pre-release for pull requests. Need change back..
     version=__version__,
     license='MIT',
     description='Uloz.to quick multiple sessions downloader. This is fork of original https://github.com/setnicka/ulozto-downloader for pre-release pull-requests',
