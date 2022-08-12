@@ -8,6 +8,7 @@ import uuid
 import shutil
 import re
 import threading
+import time
 
 class MultiTor:
     """Run multiple instances of TorRunner in own threaded Tor army.."""
@@ -83,7 +84,7 @@ class TorRunner:
         if hasattr(self, "process"):
             print("Terminating tor..")
             self.process.terminate()
-
+        time.sleep(0.5)
         if os.path.exists(self.ddir):
             shutil.rmtree(self.ddir, ignore_errors=False)
             print(f"Removed tor data dir: {self.ddir}")
