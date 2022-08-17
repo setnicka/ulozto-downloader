@@ -1,4 +1,5 @@
 import os
+import platform
 from queue import Queue
 import requests
 import sys
@@ -61,7 +62,7 @@ class Downloader:
         self.stop_frontend.set()
         if self.frontend_thread:
             self.frontend_thread.join()
-
+        
     def _captcha_breaker(self, page, parts):
         msg = ""
         if page.isDirectDownload:
@@ -170,7 +171,7 @@ class Downloader:
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            tor = TorRunner()
+            tor = TorRunner(0) #TODO reimplement to use MultiTor() class
             page = Page(url, target_dir, parts, tor, self.conn_timeout)
             page.parse()
 
@@ -318,3 +319,8 @@ class Downloader:
             sys.exit(1)
 
         self.log("All downloads successfully finished", level=LogLevel.SUCCESS)
+        # need remove udown file
+        if os.path.isfile(output_filename+DOWNPOSTFIX):
+            if platform.system() == "Windows":
+                time.sleep(1)
+            os.remove(output_filename+DOWNPOSTFIX)

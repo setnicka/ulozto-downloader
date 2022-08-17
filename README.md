@@ -43,9 +43,10 @@ Pokud máte platformu, pro který existuje na PyPI validní balíček
 instalovat speciální target s `[auto-captcha]` a ulehčit si tak instalaci
 TensorFlow Lite.
 
+[//]: <> (nazev bude platit jen pro tuto verzi urcenou pro testovani novych funkci a oprav)
 ```shell
-$ pip3 install --upgrade ulozto-downloader
-$ pip3 install --upgrade ulozto-downloader[auto-captcha]  # <-- doporučeno
+$ pip3 install --upgrade uld
+$ pip3 install --upgrade uld[auto-captcha]  # <-- doporučeno
 ```
 
 ### Instalace TORu
@@ -71,6 +72,16 @@ vaší platformu není dostupný na [PyPI](https://pypi.org/project/tflite-runti
 postupujte podle instrukcí na stránce [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python),
 kde si buď instalujte balík do systému a nebo si stáhněte z odkazu správný Wheel
 soubor podle své verze Pythonu (zjistíte zavoláním `python3 -V`).
+
+### Instalace Tensorflow na windows (automatické louskání CAPTCHA)
+
+V současnosti není možné instalovat tflite-runtime na Windows jako je to možné u některých verzí pythonu ma platformě Linux.
+Existuje však řešení:
+
+`pip install tensorflow`
+
+Toto je na Windows suštěno při: `pip install uld[auto-captcha]`
+Je třeba ale aktuální verzi MSVC knihoven a takto nainstalované zabere vše ~1.4Gb místa ve složkách python balíčků. Poté však `auto-captcha` funguje také.
 
 ### Instalace Tkinter (ruční opisování CAPTCHA)
 

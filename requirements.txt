@@ -5,3 +5,4 @@ numpy
 pysocks
 stem
 tflite-runtime[auto-captcha]
+tensorflow[auto_captcha]; platform_system=="Windows"

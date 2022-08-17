@@ -1,19 +1,35 @@
 import socket
 import stem.process
 from stem.control import Controller
+from appdirs import user_cache_dir
+from typing import List
 import os
-import uuid
 import shutil
 import re
+import threading
+import time
 
+class MultiTor:
+    """Run multiple instances of TorRunner in own threaded Tor army.."""
+
+    size: int
+    cache: str
+    tors: List[threading.Thread]
+
+    def __init__(self, size: int):
+        self.size = size
+        
+        self.tors = []
+
+        #TODO create dirs for each tor and star each TOR instance in own thread
+
+    
 
 class TorRunner:
-    """Running stem tor instance"""
-    ddir = ""
-
-    def __init__(self):
-        uid = str(uuid.uuid4())
-        self.ddir = f"tor_data_dir_{uid}"
+    """Running stem tor instance indexed by number in cache data dir"""
+    def __init__(self, idx:int):
+        self.idx = idx
+        self.ddir = os.path.join(user_cache_dir(appname="py-multitor"), "tor-" + str(self.idx))
 
     def _port_not_use(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -32,7 +48,7 @@ class TorRunner:
         return (ports[0], ports[1])
 
     def start(self, log_func):
-        os.mkdir(self.ddir)
+        os.makedirs(self.ddir, exist_ok=True)
         self.tor_ports = self._two_free_ports(41000)
         config = "SocksPort " + str(self.tor_ports[0]) + "\n"
         config += "ControlPort " + str(self.tor_ports[1]) + "\n"
@@ -65,10 +81,11 @@ class TorRunner:
         if hasattr(self, "process"):
             print("Terminating tor..")
             self.process.terminate()
-
-        if os.path.exists(self.ddir):
-            shutil.rmtree(self.ddir, ignore_errors=True)
-            print(f"Removed tor data dir: {self.ddir}")
+        
+        #time.sleep(0.5) ! now is cached to py-multitor in cache directory
+        #if os.path.exists(self.ddir):
+        #    shutil.rmtree(self.ddir, ignore_errors=False)
+        #    print(f"Removed tor data dir: {self.ddir}")
 
     def __del__(self):
         self.stop()

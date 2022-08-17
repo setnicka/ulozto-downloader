@@ -6,6 +6,7 @@ import requests
 from PIL import Image
 from io import BytesIO
 from uldlib.frontend import Frontend
+import importlib.util
 
 from uldlib.utils import LogLevel
 
@@ -29,7 +30,7 @@ class CaptchaSolver():
 
 
 class Dummy(CaptchaSolver):
-    """Dumy solver when tflite_runtime nor tkinter available."""
+    """Dumy solver when tflite_runtime or full tensorflow nor tkinter available."""
 
     def __init__(self, frontend):
         super().__init__(frontend)
@@ -103,9 +104,15 @@ class AutoReadCaptcha(CaptchaSolver):
     def __init__(self, model_path, model_url, frontend):
         super().__init__(frontend)
 
+        tflite_available = importlib.util.find_spec('tflite_runtime')
+        fulltf_available = importlib.util.find_spec('tensorflow')
+
         from urllib.request import urlretrieve
         import os
-        import tflite_runtime.interpreter as tflite
+        if tflite_available:
+            import tflite_runtime.interpreter as tflite
+        else:
+            import tensorflow.lite as tflite
 
         def reporthook(blocknum, block_size, total_size):
             """
