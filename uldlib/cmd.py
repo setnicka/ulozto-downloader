@@ -2,6 +2,7 @@ import argparse
 import importlib.util
 import sys
 import signal
+import os
 from os import path
 from uldlib import downloader, captcha, __version__, __path__
 from uldlib.const import DEFAULT_CONN_TIMEOUT
@@ -67,6 +68,10 @@ def run():
     else:
         solver = captcha.Dummy(frontend)
 
+    # enables ansi escape characters in terminal on Windows
+    if os.name == 'nt':
+        os.system("")
+        
     d = downloader.Downloader(frontend, solver)
 
     # Register sigint handler
