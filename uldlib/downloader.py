@@ -320,4 +320,5 @@ class Downloader:
         self.log("All downloads successfully finished", level=LogLevel.SUCCESS)
         # need remove udown file
         if os.path.isfile(output_filename+DOWNPOSTFIX):
+            time.sleep(1)
             os.remove(output_filename+DOWNPOSTFIX)
