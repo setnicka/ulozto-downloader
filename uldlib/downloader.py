@@ -33,19 +33,21 @@ class Downloader:
     stop_captcha: threading.Event
 
     download_url_queue: Queue
-    #file_data_queue: mp.Queue
     parts: int
     tor: TorRunner
 
     def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+        self.target_dir = None
+        self.url = None
+        self.filename = None
+        self.output_filename = None
+        self.total_size = None
         self.frontend = frontend
         self.log = frontend.main_log
         self.captcha_solver = captcha_solver
 
         self.cli_initialized = False
         self.conn_timeout = None
-        #self.cli_mode = cli_mode
-        #self.file_data_queue = file_data_queue
         self.tor = tor
 
         self.stop_download = threading.Event()
@@ -60,13 +62,14 @@ class Downloader:
         self.log('Terminating download. Please wait for stopping all threads.')
         self.stop_captcha.set()
         self.stop_download.set()
-        if self.captcha_thread:
+        if self.captcha_thread and self.captcha_thread.is_alive():
             self.captcha_thread.join()
         for p in self.threads:
-            p.join()
+            if p.is_alive():
+                p.join()
         self.log('Download terminated.')
         self.stop_frontend.set()
-        if self.frontend_thread:
+        if self.frontend_thread and self.frontend_thread.is_alive():
             self.frontend_thread.join()
 
     def _captcha_breaker(self, page, parts):
@@ -185,19 +188,20 @@ class Downloader:
             raise e
 
         # Do check - only if .udown status file not exists get question
-        output_filename = os.path.join(target_dir, page.filename)
+        self.output_filename = os.path.join(target_dir, page.filename)
+        self.filename = page.filename
         # .udown file is always present in cli_mode = False
-        if os.path.isfile(output_filename) and not os.path.isfile(output_filename + DOWNPOSTFIX):
+        if os.path.isfile(self.output_filename) and not os.path.isfile(self.output_filename + DOWNPOSTFIX):
             if self.frontend.supports_prompt:
                 answer = self.frontend.prompt(
-                    "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename), level=LogLevel.WARNING)
+                    "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(self.output_filename), level=LogLevel.WARNING)
                 if answer != 'y':
                     sys.exit(1)
             else:
                 # TODO: do not overwrite file, but serve it instead
                 print(colors.yellow(
                     "WARNING: File '{}' already exists, but .udown file not present."
-                    "File will be overwritten..".format(output_filename)), end="")
+                    "File will be overwritten..".format(self.output_filename)), end="")
 
         info = DownloadInfo()
         info.filename = page.filename
@@ -229,16 +233,16 @@ class Downloader:
             download_url = next(self.captcha_download_links_generator)
 
         head = requests.head(download_url, allow_redirects=True)
-        total_size = int(head.headers['Content-Length'])
+        self.total_size = int(head.headers['Content-Length'])
 
         try:
-            file_data = SegFileLoader(output_filename, total_size, parts)
+            file_data = SegFileLoader(self.output_filename, self.total_size, parts)
             writers = file_data.make_writers()
         except Exception as e:
-            self.log(f"Failed: Can not create '{output_filename}' error: {e} ", level=LogLevel.ERROR)
+            self.log(f"Failed: Can not create '{self.output_filename}' error: {e} ", level=LogLevel.ERROR)
             sys.exit(1)
 
-        info.total_size = total_size
+        info.total_size = self.total_size
         info.part_size = file_data.part_size
         info.parts = file_data.parts
 
@@ -318,9 +322,9 @@ class Downloader:
 
         self.stop_captcha.set()
         self.stop_frontend.set()
-        if self.captcha_thread:
+        if self.captcha_thread and self.captcha_thread.is_alive():
             self.captcha_thread.join()
-        if self.frontend_thread:
+        if self.frontend_thread and self.frontend_thread.is_alive():
             self.frontend_thread.join()
 
         # result end status

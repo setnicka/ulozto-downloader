@@ -45,30 +45,31 @@ class Frontend():
         pass
 
     @abstractmethod
-    def run(self, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
+    def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
         pass
 
 
-class NoOpFrontend(Frontend):
+class ApiFrontend(Frontend):
 
     def __init__(self, supports_prompt=False):
         super().__init__(supports_prompt)
 
     def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO):
-        pass
+        sys.stdout.write(colors.blue(
+            "[Link solve]\t") + ConsoleFrontend.color(msg, level) + "\033[K\r")
 
     def captcha_stats(self, stats: Dict[str, int]):
         pass
 
     def main_log(self, msg: str, level: LogLevel = LogLevel.INFO):
-        pass
+        print(ConsoleFrontend.color(msg, level))
 
     def prompt(self, msg: str, level: LogLevel = LogLevel.INFO) -> str:
         if not self.supports_prompt:
             raise Exception('Prompt not supported')
         return ""
 
-    def run(self, parts: List[DownloadPart], stop_event: threading.Event):
+    def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
         pass
 
 
@@ -91,7 +92,7 @@ class ConsoleFrontend(Frontend):
         self.last_captcha_log = (msg, level)
         if not self.cli_initialized:
             sys.stdout.write(colors.blue(
-                "[Link solve]\t") + self._color(msg, level) + "\033[K\r")
+                "[Link solve]\t") + self.color(msg, level) + "\033[K\r")
 
     def captcha_stats(self, stats: Dict[str, int]):
         self.last_captcha_stats = stats
@@ -101,10 +102,10 @@ class ConsoleFrontend(Frontend):
 
         if self.cli_initialized:
             return
-        print(self._color(msg, level))
+        print(self.color(msg, level))
 
     def prompt(self, msg: str, level: LogLevel = LogLevel.INFO) -> str:
-        print(self._color(msg, level), end="")
+        print(self.color(msg, level), end="")
         return input().strip()
 
     @staticmethod
@@ -125,7 +126,7 @@ class ConsoleFrontend(Frontend):
         sys.stdout.flush()
 
     @staticmethod
-    def _color(text: str, level: LogLevel) -> str:
+    def color(text: str, level: LogLevel) -> str:
         if level == LogLevel.WARNING:
             return colors.yellow(text)
         if level == LogLevel.ERROR:
@@ -178,7 +179,7 @@ class ConsoleFrontend(Frontend):
             s = 0
             for part in parts:
                 (line, level, size) = part.get_frontend_status()
-                lines.append(self._color(line, level))
+                lines.append(self.color(line, level))
                 s += size
 
             # Print parts
@@ -193,7 +194,7 @@ class ConsoleFrontend(Frontend):
             (msg, level) = self.last_captcha_log
             self._print(
                 colors.yellow("[Link solve]\t") +
-                self._color(msg, level),
+                self.color(msg, level),
                 y=y
             )
             y += 1
@@ -234,7 +235,7 @@ class ConsoleFrontend(Frontend):
             (msg, level) = self.last_log
             self._print(
                 colors.yellow("[STATUS]\t") +
-                self._color(msg, level),
+                self.color(msg, level),
                 y=y
             )
             y += 1

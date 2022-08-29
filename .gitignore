@@ -24,3 +24,11 @@ parser.py
 testdata/
 .mp4
 .avi
+
+
+# Custom
+.ucache
+.udown
+testdata/
+.mp4
+.avi

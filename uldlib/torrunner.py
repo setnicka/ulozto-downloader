@@ -10,6 +10,7 @@ import shutil
 import re
 
 from uldlib import const
+from uldlib.utils import LogLevel
 
 
 class TorRunner:
@@ -17,6 +18,7 @@ class TorRunner:
     ddir: str
 
     def __init__(self, ddir: str = ""):
+        self.proxies = None
         self.torRunning = False
         uid = str(uuid.uuid4())
         self.ddir = os.path.join(ddir, f"{const.TOR_DATA_DIR_PREFIX}{uid}")
@@ -44,9 +46,14 @@ class TorRunner:
             try:
                 self.start(log_func=log_func)
                 self.torRunning = True
+                self.proxies = {
+                    'http': 'socks5://127.0.0.1:' + str(self.tor_ports[0]),
+                    'https': 'socks5://127.0.0.1:' + str(self.tor_ports[0])
+                }
 
             except OSError as e:
-                print(f"Tor start failed: {e}, exiting.. try run program again..")
+                _error_net_stat(
+                    f"Tor start failed: {e}, exiting.. try run program again..", log_func)
                 # remove tor data
                 if os.path.exists(self.ddir):
                     shutil.rmtree(self.ddir, ignore_errors=True)
@@ -101,3 +108,9 @@ class TorRunner:
 
     def __del__(self):
         self.stop()
+
+
+def _error_net_stat(self, err, log_func):
+    self.stats["all"] += 1
+    log_func(f"Network error get new TOR connection: {err}", level=LogLevel.ERROR)
+    self.stats["net"] += 1

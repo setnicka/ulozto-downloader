@@ -3,10 +3,10 @@
 import asyncio
 import os
 import signal
+import threading
 import urllib.parse
 from asyncio import CancelledError
 from contextlib import suppress
-from multiprocessing import Queue, Process
 from os import path
 from typing import Optional
 
@@ -18,7 +18,7 @@ from starlette.responses import JSONResponse
 from uldlib import captcha, const
 from uldlib.captcha import AutoReadCaptcha
 from uldlib.downloader import Downloader
-from uldlib.frontend import NoOpFrontend
+from uldlib.frontend import ApiFrontend
 from uldlib.segfile import SegFileReader
 from uldlib.torrunner import TorRunner
 
@@ -31,15 +31,13 @@ default_parts: int = int(os.getenv('PARTS', 10))
 auto_delete_downloads: bool = os.getenv('AUTO_DELETE_DOWNLOADS', '0').strip().lower() in ['true', '1', 't', 'y', 'yes']
 
 model_path = path.join(data_folder, const.MODEL_FILENAME)
-frontend: NoOpFrontend = NoOpFrontend()
+frontend: ApiFrontend = ApiFrontend()
 captcha_solve_fnc: AutoReadCaptcha = captcha.AutoReadCaptcha(
     model_path, const.MODEL_DOWNLOAD_URL, frontend)
 
 downloader: Downloader = None
-process: Process = None
-queue: Queue = None
+download_thread: threading.Thread = None
 tor: TorRunner = None
-file_data: tuple = None
 global_url: str = None
 
 
@@ -70,11 +68,12 @@ def downloader_worker(url: str, parts: int, target_dir: str):
 
 
 def cleanup_stream(file_path: str = None):
-    global file_data, global_url
-    if file_data is not None:
-        file_data = None
+    global global_url, downloader
     if global_url is not None:
         global_url = None
+    if downloader is not None:
+        downloader.terminate()
+        downloader = None
     if auto_delete_downloads:
         print(f"Cleanup of: {file_path}")
         with suppress(FileNotFoundError):
@@ -84,19 +83,14 @@ def cleanup_stream(file_path: str = None):
 
 
 def cleanup_download():
-    global downloader, process, queue, tor
-    if process is not None:
-        process.join()
-        process = None
-    if queue is not None:
-        queue.close()
-        queue = None
+    global downloader, download_thread, tor
+    if download_thread is not None:
+        if download_thread.is_alive():
+            download_thread.join()
+        download_thread = None
     if tor is not None:
         tor.stop()
         tor = None
-    if downloader is not None:
-        downloader.terminate()
-        downloader = None
 
 
 @app.get("/initiate", responses={
@@ -104,7 +98,7 @@ def cleanup_download():
     429: {"content": {const.MEDIA_TYPE_JSON: {}}, }
 })
 async def initiate(background_tasks: BackgroundTasks, url: str, parts: Optional[int] = default_parts):
-    global downloader, process, queue, tor, file_data, global_url
+    global downloader, download_thread, tor, global_url
 
     # TODO: What happens when the same url is called twice and parts number changes?
     if global_url is not None and global_url != url:
@@ -114,24 +108,25 @@ async def initiate(background_tasks: BackgroundTasks, url: str, parts: Optional[
             status_code=429
         )
 
-    if file_data is None:
+    if downloader is None:
         global_url = url
         tor = TorRunner(temp_path)
         tor.launch(captcha_solve_fnc.log)
-        queue = Queue()
         downloader = Downloader(tor, frontend, captcha_solve_fnc)
-        process = Process(target=downloader_worker,
-                          args=(url, parts, download_path))
-        process.start()
+        download_thread = threading.Thread(
+            target=downloader.download,
+            args=(url, parts, download_path, const.DEFAULT_CONN_TIMEOUT)
+        )
+        download_thread.run()
 
         background_tasks.add_task(cleanup_download)
 
-        file_data = await asyncio.get_event_loop().run_in_executor(None, queue.get)
+        while downloader.total_size is None:
+            await asyncio.sleep(0.1)
 
-    file_path = file_data[0]
-    filename = file_data[1]
-    size = file_data[2]
-    parts = file_data[3]
+    file_path = downloader.output_filename
+    filename = downloader.filename
+    size = downloader.total_size
 
     return JSONResponse(
         content={"url": f"{url}",
@@ -150,9 +145,9 @@ async def initiate(background_tasks: BackgroundTasks, url: str, parts: Optional[
     429: {"content": {const.MEDIA_TYPE_JSON: {}}, }
 })
 async def download_endpoint(request: Request, background_tasks: BackgroundTasks, url: str):
-    global downloader, process, queue
+    global downloader
 
-    if file_data is None:
+    if downloader is None:
         return JSONResponse(
             content={"url": f"{url}",
                      "message": "Download not initiated."},
@@ -165,11 +160,11 @@ async def download_endpoint(request: Request, background_tasks: BackgroundTasks,
             status_code=429
         )
 
-    file_path = file_data[0]
-    filename = file_data[1]
+    file_path = downloader.output_filename
+    filename = downloader.filename
     filename_encoded = urllib.parse.quote_plus(filename)
-    size = file_data[2]
-    parts = file_data[3]
+    size = downloader.total_size
+    parts = downloader.parts
 
     return StreamingResponse(
         generate_stream(request, background_tasks, file_path, parts),

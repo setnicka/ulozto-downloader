@@ -10,3 +10,8 @@ uvicorn
 fastapi
 starlette
 psutil
+setuptools
+uvicorn
+fastapi
+starlette
+psutil
