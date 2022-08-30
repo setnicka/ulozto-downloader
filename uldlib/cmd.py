@@ -72,6 +72,7 @@ def run():
         os.system("")
 
     tor = TorRunner(args.output)
+    tor.launch(solver.log)
     d = downloader.Downloader(tor, frontend, solver)
 
 
