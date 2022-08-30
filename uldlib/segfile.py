@@ -231,10 +231,3 @@ class SegFileMonitor:
             return sizenow
         else:
             return 0
-
-    #def clean(self):
-    #    if self.file_size is not None:
-    #        if not self.sfp.closed:
-    #            self.sfp.close()
-    #        if os.path.exists(self.progfile):
-    #            os.remove(self.progfile)
