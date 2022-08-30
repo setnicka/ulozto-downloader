@@ -3,9 +3,9 @@
 import asyncio
 import os
 import signal
-import threading
 import urllib.parse
 from asyncio import CancelledError
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from os import path
 from typing import Optional
@@ -18,8 +18,8 @@ from starlette.responses import JSONResponse
 from uldlib import captcha, const
 from uldlib.captcha import AutoReadCaptcha
 from uldlib.downloader import Downloader
-from uldlib.frontend import ApiFrontend
-from uldlib.segfile import SegFileReader
+from uldlib.frontend import WebAppFrontend
+from uldlib.segfile import AsyncSegFileReader
 from uldlib.torrunner import TorRunner
 
 app = FastAPI()
@@ -31,12 +31,12 @@ default_parts: int = int(os.getenv('PARTS', 10))
 auto_delete_downloads: bool = os.getenv('AUTO_DELETE_DOWNLOADS', '0').strip().lower() in ['true', '1', 't', 'y', 'yes']
 
 model_path = path.join(data_folder, const.MODEL_FILENAME)
-frontend: ApiFrontend = ApiFrontend()
+frontend: WebAppFrontend = WebAppFrontend()
 captcha_solve_fnc: AutoReadCaptcha = captcha.AutoReadCaptcha(
     model_path, const.MODEL_DOWNLOAD_URL, frontend)
+executor = ThreadPoolExecutor(max_workers=2)
 
 downloader: Downloader = None
-download_thread: threading.Thread = None
 tor: TorRunner = None
 global_url: str = None
 
@@ -45,7 +45,7 @@ async def generate_stream(request: Request, background_tasks: BackgroundTasks, f
     download_canceled = False
     try:
         for seg_idx in range(parts):
-            reader = SegFileReader(file_path, parts, seg_idx)
+            reader = AsyncSegFileReader(file_path, parts, seg_idx)
             stream_generator = reader.read()
             with suppress(CancelledError):
                 async for data in stream_generator:
@@ -57,23 +57,21 @@ async def generate_stream(request: Request, background_tasks: BackgroundTasks, f
                     yield data
     finally:
         if not download_canceled:
-            while downloader is not None:
-                await asyncio.sleep(0.1)
-            background_tasks.add_task(cleanup_stream, file_path)
+            while downloader.success is None:
+                await asyncio.sleep(1)
+            background_tasks.add_task(cleanup_download, file_path)
 
 
-def downloader_worker(url: str, parts: int, target_dir: str):
-    signal.signal(signal.SIGINT, sigint_sub_handler)
-    downloader.download(url, parts, target_dir)
-
-
-def cleanup_stream(file_path: str = None):
-    global global_url, downloader
+def cleanup_download(file_path: str = None):
+    global global_url, downloader, tor
     if global_url is not None:
         global_url = None
     if downloader is not None:
         downloader.terminate()
         downloader = None
+    if tor is not None:
+        tor.stop()
+        tor = None
     if auto_delete_downloads:
         print(f"Cleanup of: {file_path}")
         with suppress(FileNotFoundError):
@@ -82,23 +80,12 @@ def cleanup_stream(file_path: str = None):
             os.remove(file_path)
 
 
-def cleanup_download():
-    global downloader, download_thread, tor
-    if download_thread is not None:
-        if download_thread.is_alive():
-            download_thread.join()
-        download_thread = None
-    if tor is not None:
-        tor.stop()
-        tor = None
-
-
 @app.get("/initiate", responses={
     200: {"content": {const.MEDIA_TYPE_JSON: {}}, },
     429: {"content": {const.MEDIA_TYPE_JSON: {}}, }
 })
-async def initiate(background_tasks: BackgroundTasks, url: str, parts: Optional[int] = default_parts):
-    global downloader, download_thread, tor, global_url
+async def initiate(url: str, parts: Optional[int] = default_parts):
+    global downloader, tor, global_url
 
     # TODO: What happens when the same url is called twice and parts number changes?
     if global_url is not None and global_url != url:
@@ -113,13 +100,8 @@ async def initiate(background_tasks: BackgroundTasks, url: str, parts: Optional[
         tor = TorRunner(temp_path)
         tor.launch(captcha_solve_fnc.log)
         downloader = Downloader(tor, frontend, captcha_solve_fnc)
-        download_thread = threading.Thread(
-            target=downloader.download,
-            args=(url, parts, download_path, const.DEFAULT_CONN_TIMEOUT)
-        )
-        download_thread.run()
 
-        background_tasks.add_task(cleanup_download)
+        asyncio.get_event_loop().run_in_executor(executor, downloader.download, url, parts, download_path)
 
         while downloader.total_size is None:
             await asyncio.sleep(0.1)
@@ -174,11 +156,16 @@ async def download_endpoint(request: Request, background_tasks: BackgroundTasks,
         }, media_type=const.MEDIA_TYPE_STREAM)
 
 
-def sigint_sub_handler(sig, frame):
-    downloader.terminate()
+def sigint_handler(sig, frame):
+    if tor is not None and tor.torRunning:
+        tor.stop()
+    if downloader is not None:
+        downloader.terminate()
 
 
 if __name__ == "__main__":
     import uvicorn
 
+    signal.signal(signal.SIGINT, sigint_handler)
+    signal.signal(signal.SIGHUP, sigint_handler)
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,6 +1,7 @@
 import asyncio
 from io import FileIO
 from math import ceil
+from time import sleep
 from typing import List
 from . import const
 import os
@@ -69,6 +70,30 @@ class SegFile:
 
 class SegFileReader(SegFile):
     """Implementation segment read file"""
+
+    def read(self):
+        last_pos = self.pfrom
+        self.fp.seek(self.pfrom, os.SEEK_SET)
+
+        while last_pos < self.pto:
+            to_read = self.cur_pos - last_pos
+
+            while to_read > 0:
+                if const.OUTFILE_READ_BUF < to_read:
+                    cur_read = const.OUTFILE_READ_BUF
+                else:
+                    cur_read = to_read
+
+                yield self.fp.read(cur_read)
+                to_read = to_read - cur_read
+
+            last_pos = self.cur_pos
+            sleep(0.1)
+            self._read_stat()
+
+
+class AsyncSegFileReader(SegFileReader):
+    """Implementation asynchronous segment read file"""
 
     async def read(self):
         last_pos = self.pfrom

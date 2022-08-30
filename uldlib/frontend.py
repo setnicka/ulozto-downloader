@@ -49,7 +49,7 @@ class Frontend():
         pass
 
 
-class ApiFrontend(Frontend):
+class WebAppFrontend(Frontend):
 
     def __init__(self, supports_prompt=False):
         super().__init__(supports_prompt)

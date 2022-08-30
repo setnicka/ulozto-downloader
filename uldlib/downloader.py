@@ -37,6 +37,7 @@ class Downloader:
     tor: TorRunner
 
     def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+        self.success = None
         self.target_dir = None
         self.url = None
         self.filename = None
@@ -327,6 +328,7 @@ class Downloader:
         if self.frontend_thread and self.frontend_thread.is_alive():
             self.frontend_thread.join()
 
+        self.success = success
         # result end status
         if not success:
             self.log("Failure of one or more downloads, exiting", level=LogLevel.ERROR)
