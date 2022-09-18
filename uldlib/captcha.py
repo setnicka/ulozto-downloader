@@ -1,12 +1,13 @@
 from abc import abstractmethod
 import threading
 import time
+import importlib
 from typing import Dict
 import requests
 from PIL import Image
 from io import BytesIO
-from uldlib.frontend import Frontend
 
+from uldlib.frontend import Frontend
 from uldlib.utils import LogLevel
 
 
@@ -105,7 +106,16 @@ class AutoReadCaptcha(CaptchaSolver):
 
         from urllib.request import urlretrieve
         import os
-        import tflite_runtime.interpreter as tflite
+
+        tfull_available = importlib.util.find_spec('tensorflow.lite')
+        tflite_available = importlib.util.find_spec('tflite_runtime')
+
+        if tfull_available:
+            import tensorflow.lite as tflite 
+        elif tflite_runtime:
+            import tflite_runtime.interpreter as tflite
+        else:
+            raise ImportError('No tensorflow.lite or tflite_runtime available.')
 
         def reporthook(blocknum, block_size, total_size):
             """
