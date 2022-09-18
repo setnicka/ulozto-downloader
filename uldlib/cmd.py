@@ -34,12 +34,16 @@ def run():
     # TODO: implement other frontends and allow to choose from them
     frontend = ConsoleFrontend()
 
+    tfull_available = importlib.util.find_spec('tensorflow.lite')
     tflite_available = importlib.util.find_spec('tflite_runtime')
     tkinter_available = importlib.util.find_spec('tkinter')
 
     # Autodetection
     if not args.auto_captcha and not args.manual_captcha:
-        if tflite_available:
+        if tfull_available:
+            frontend.main_log("[Autodetect] tensorflow.lite available, using --auto-captcha")
+            args.auto_captcha = True
+        elif tflite_available:
             frontend.main_log("[Autodetect] tflite_runtime available, using --auto-captcha")
             args.auto_captcha = True
         elif tkinter_available:
@@ -47,13 +51,13 @@ def run():
             args.manual_captcha = True
         else:
             frontend.main_log(
-                "[Autodetect] WARNING: No tflite_runtime and no tkinter available, cannot solve CAPTCHA (only direct download available)",
-                level=LogLevel.WARNING
+                "[Autodetect] WARNING: No tensorflow.lite or tflite_runtime and no tkinter available, cannot solve CAPTCHA (only direct download available)",
+                level = LogLevel.WARNING
             )
 
     if args.auto_captcha:
-        if not tflite_available:
-            frontend.main_log('ERROR: --auto-captcha used but tflite_runtime not available', level=LogLevel.ERROR)
+        if not(tfull_available or tflite_available):
+            frontend.main_log('ERROR: --auto-captcha used but neither tensorflow.lite nor tflite_runtime are available', level=LogLevel.ERROR)
             sys.exit(1)
 
         model_path = path.join(__path__[0], "model.tflite")
