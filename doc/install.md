@@ -38,3 +38,11 @@ pkg install git
 pip install ulozto-downloader
 ```
 11.) Nainstalujte grafické rozhraní, ve kterém budete opisovat captcha kódy, podle návodu [zde](https://wiki.termux.com/wiki/Graphical_Environment).
+
+## MacOS
+
+### Tor install
+Installing tor package from brew provides all needed for Tor usage.
+```shell
+brew install tor
+```
