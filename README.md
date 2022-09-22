@@ -72,6 +72,8 @@ postupujte podle instrukcí na stránce [TensorFlow Lite](https://www.tensorflow
 kde si buď instalujte balík do systému a nebo si stáhněte z odkazu správný Wheel
 soubor podle své verze Pythonu (zjistíte zavoláním `python3 -V`).
 
+Verzi pro windows nebo pokud vám instalace hází chybu stáhněte z repozitáře [pycoral](https://github.com/google-coral/pycoral/releases)
+
 ### Instalace Tkinter (ruční opisování CAPTCHA)
 
 Potřebujete na systému instalovaný Tkinter (bohužel není na PyPI, takže je
