@@ -47,17 +47,19 @@ class Frontend():
 
 class ConsoleFrontend(Frontend):
     cli_initialized: bool
+    show_parts_progress: bool
 
     last_log: Tuple[str, LogLevel]
 
     last_captcha_log: Tuple[str, LogLevel]
     last_captcha_stats: Dict[str, int]
 
-    def __init__(self):
+    def __init__(self, args):
         self.cli_initialized = False
         self.last_log = ("", LogLevel.INFO)
         self.last_captcha_log = ("", LogLevel.INFO)
         self.last_captcha_stats = None
+        self.show_parts_progress = args.parts_progress
 
     def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO):
         self.last_captcha_log = (msg, level)
@@ -153,13 +155,7 @@ class ConsoleFrontend(Frontend):
                 lines.append(self._color(line, level))
                 s += size
 
-            # Print parts
-            for (line, part) in zip(lines, parts):
-                self._print(
-                    colors.blue(f"[Part {part.id}]") + f"\t{line}",
-                    y=(part.id + CLI_STATUS_STARTLINE))
-
-            y = info.parts + CLI_STATUS_STARTLINE
+            y = CLI_STATUS_STARTLINE
 
             # Print CAPTCHA/TOR status
             (msg, level) = self.last_captcha_log
@@ -210,6 +206,13 @@ class ConsoleFrontend(Frontend):
                 y=y
             )
             y += 1
+
+            # Print parts
+            if self.show_parts_progress:
+                for (line, part) in zip(lines, parts):
+                    self._print(
+                        colors.blue(f"[Part {part.id}]") + f"\t{line}",
+                        y=(y + part.id))
 
             time.sleep(0.5)
 
