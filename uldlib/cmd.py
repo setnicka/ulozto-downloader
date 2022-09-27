@@ -19,6 +19,8 @@ def run():
                         help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
     parser.add_argument('--parts', metavar='N', type=int, default=20,
                         help='Number of parts that will be downloaded in parallel')
+    parser.add_argument('--parts-progress', default=False, action='store_true',
+                        help='Show progress of parts while being downloaded')
     parser.add_argument('--output', metavar='DIRECTORY',
                         type=str, default="./", help='Target directory')
     parser.add_argument('--auto-captcha', default=False, action="store_true",
@@ -32,7 +34,7 @@ def run():
     args = parser.parse_args()
 
     # TODO: implement other frontends and allow to choose from them
-    frontend = ConsoleFrontend()
+    frontend = ConsoleFrontend(args)
 
     tflite_available = importlib.util.find_spec('tflite_runtime')
     tkinter_available = importlib.util.find_spec('tkinter')
