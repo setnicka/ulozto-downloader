@@ -34,7 +34,7 @@ def run():
     args = parser.parse_args()
 
     # TODO: implement other frontends and allow to choose from them
-    frontend = ConsoleFrontend(args)
+    frontend = ConsoleFrontend(show_parts=args.parts_progress)
 
     tflite_available = importlib.util.find_spec('tflite_runtime')
     tkinter_available = importlib.util.find_spec('tkinter')
