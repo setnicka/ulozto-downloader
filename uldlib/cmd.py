@@ -36,7 +36,7 @@ def run():
     # TODO: implement other frontends and allow to choose from them
     frontend = ConsoleFrontend(show_parts=args.parts_progress)
 
-    tfull_available = importlib.util.find_spec('tensorflow.lite')
+    tfull_available = importlib.util.find_spec('tensorflow') and importlib.util.find_spec('tensorflow.lite')
     tflite_available = importlib.util.find_spec('tflite_runtime')
     tkinter_available = importlib.util.find_spec('tkinter')
 
@@ -54,11 +54,11 @@ def run():
         else:
             frontend.main_log(
                 "[Autodetect] WARNING: No tensorflow.lite or tflite_runtime and no tkinter available, cannot solve CAPTCHA (only direct download available)",
-                level = LogLevel.WARNING
+                level=LogLevel.WARNING
             )
 
     if args.auto_captcha:
-        if not(tfull_available or tflite_available):
+        if not (tfull_available or tflite_available):
             frontend.main_log('ERROR: --auto-captcha used but neither tensorflow.lite nor tflite_runtime are available', level=LogLevel.ERROR)
             sys.exit(1)
 
@@ -77,7 +77,7 @@ def run():
     # enables ansi escape characters in terminal on Windows
     if os.name == 'nt':
         os.system("")
-        
+
     d = downloader.Downloader(frontend, solver)
 
     # Register sigint handler

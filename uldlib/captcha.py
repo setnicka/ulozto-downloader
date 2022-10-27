@@ -101,18 +101,18 @@ class ManualInput(CaptchaSolver):
 
 
 class AutoReadCaptcha(CaptchaSolver):
-    def __init__(self, model_path, model_url, frontend):
+    def __init__(self, model_path: str, model_url: str, frontend: Frontend):
         super().__init__(frontend)
 
         from urllib.request import urlretrieve
         import os
 
-        tfull_available = importlib.util.find_spec('tensorflow.lite')
+        tfull_available = importlib.util.find_spec('tensorflow') and importlib.util.find_spec('tensorflow.lite')
         tflite_available = importlib.util.find_spec('tflite_runtime')
 
         if tfull_available:
-            import tensorflow.lite as tflite 
-        elif tflite_runtime:
+            import tensorflow.lite as tflite
+        elif tflite_available:
             import tflite_runtime.interpreter as tflite
         else:
             raise ImportError('No tensorflow.lite or tflite_runtime available.')
