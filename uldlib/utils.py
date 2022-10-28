@@ -18,3 +18,11 @@ def color(text: str, level: LogLevel) -> str:
     if level == LogLevel.SUCCESS:
         return colors.green(text)
     return text
+
+
+class DownloaderStopped(Exception):
+    pass
+
+
+class DownloaderError(Exception):
+    pass

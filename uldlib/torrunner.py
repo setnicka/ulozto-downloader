@@ -9,7 +9,7 @@ import shutil
 import re
 
 from uldlib import const
-from uldlib.utils import LogLevel
+from uldlib.utils import DownloaderError, LogLevel
 
 
 class TorRunner:
@@ -38,24 +38,25 @@ class TorRunner:
             at += 1
         return (ports[0], ports[1])
 
-    def launch(self, log_func):
-        if not self.torRunning:
-            print("Starting TOR...")
-            # tor started after cli initialized
-            try:
-                self.start(log_func=log_func)
-                self.torRunning = True
-                self.proxies = {
-                    'http': 'socks5://127.0.0.1:' + str(self.tor_ports[0]),
-                    'https': 'socks5://127.0.0.1:' + str(self.tor_ports[0])
-                }
+    def launch(self):
+        if self.torRunning:
+            return
 
-            except OSError as e:
-                log_func("Tor start failed: {}, exiting.. try run program again..".format(e), level=LogLevel.ERROR)
-                # remove tor data
-                if os.path.exists(self.ddir):
-                    shutil.rmtree(self.ddir, ignore_errors=True)
-                sys.exit(1)
+        self.log_func("Starting TOR...")
+        # tor started after cli initialized
+        try:
+            self.start()
+            self.torRunning = True
+            self.proxies = {
+                'http': 'socks5://127.0.0.1:' + str(self.tor_ports[0]),
+                'https': 'socks5://127.0.0.1:' + str(self.tor_ports[0])
+            }
+
+        except OSError as e:
+            # remove tor data
+            if os.path.exists(self.ddir):
+                shutil.rmtree(self.ddir, ignore_errors=True)
+            raise DownloaderError(f"Tor start failed: {e}, exiting. Try run program again.")
 
     def start(self, log_func):
         os.mkdir(self.ddir)

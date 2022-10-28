@@ -5,6 +5,7 @@ import os
 import sys
 from os import path
 from uldlib import downloader, captcha, __version__, __path__, const
+from uldlib import utils
 from uldlib.frontend import ConsoleFrontend
 from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
@@ -98,5 +99,9 @@ def run():
         if os.path.exists(udown_file):
             print(f"Delete file: {udown_file}")
             os.remove(udown_file)
+    except utils.DownloaderStopped:
+        pass
+    except utils.DownloaderError as e:
+        frontend.main_log(str(e), level=LogLevel.ERROR)
     finally:
         d.terminate()

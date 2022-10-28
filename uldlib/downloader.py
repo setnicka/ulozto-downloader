@@ -1,7 +1,6 @@
 import os
 from queue import Queue
 import requests
-import sys
 import threading
 import time
 from typing import List, Type
@@ -13,7 +12,7 @@ from uldlib.page import Page
 from uldlib.part import DownloadPart
 from uldlib.segfile import SegFileLoader
 from uldlib.torrunner import TorRunner
-from uldlib.utils import LogLevel
+from uldlib.utils import DownloaderError, DownloaderStopped, LogLevel
 
 
 class Downloader:
@@ -195,7 +194,7 @@ class Downloader:
                 answer = self.frontend.prompt(
                     "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(self.output_filename), level=LogLevel.WARNING)
                 if answer != 'y':
-                    sys.exit(1)
+                    raise DownloaderStopped()
             else:
                 self.log("WARNING: File '{}' already exists, but .udown file not present. File will be overwritten.."
                          .format(self.output_filename), level=LogLevel.WARNING)
@@ -221,8 +220,7 @@ class Downloader:
                 info.download_type = "CAPTCHA protected download"
 
             if self.isCaptcha and self.captcha_solver.cannot_solve:
-                self.log("Cannot solve CAPTCHAs, no solver available. Terminating", level=LogLevel.ERROR)
-                sys.exit(1)
+                raise DownloaderError("Cannot solve CAPTCHAs, no solver available. Terminating")
 
             self.captcha_download_links_generator = page.captcha_download_links_generator(
                 solver=self.captcha_solver, stop_event=self.stop_captcha,
@@ -236,8 +234,7 @@ class Downloader:
             file_data = SegFileLoader(self.output_filename, self.total_size, parts)
             writers = file_data.make_writers()
         except Exception as e:
-            self.log(f"Failed: Can not create '{self.output_filename}' error: {e} ", level=LogLevel.ERROR)
-            sys.exit(1)
+            raise DownloaderError(f"Failed: Can not create '{self.output_filename}' error: {e} ")
 
         info.total_size = self.total_size
         info.part_size = file_data.part_size
@@ -327,7 +324,6 @@ class Downloader:
         self.success = success
         # result end status
         if not success:
-            self.log("Failure of one or more downloads, exiting", level=LogLevel.ERROR)
-            return
+            raise DownloaderError("Failure of one or more downloads, exiting")
 
         self.log("All downloads successfully finished", level=LogLevel.SUCCESS)

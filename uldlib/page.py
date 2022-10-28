@@ -10,6 +10,7 @@ import requests
 from uldlib.captcha import CaptchaSolver
 from uldlib.frontend import LogLevel
 from uldlib.torrunner import TorRunner
+from uldlib.utils import DownloaderError
 
 from .const import XML_HEADERS, DEFAULT_CONN_TIMEOUT
 from .linkcache import LinkCache
@@ -217,8 +218,7 @@ class Page:
                 break
 
             if not self.tor.torRunning:
-                print("TOR needs to be running...")
-                sys.exit(1)
+                raise DownloaderError("TOR needs to be running...")
 
             # reload tor after 1. use or all except badCaptcha case
             reload = False
