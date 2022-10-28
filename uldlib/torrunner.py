@@ -92,12 +92,17 @@ class TorRunner:
         self.ctrl.signal("RELOAD")
 
     def stop(self):
+        if not self.torRunning:
+            return
+
         if hasattr(self, "process"):
             self.log_func("Terminating tor")
             self.process.terminate()
             if self.process.wait(10) is None:
                 self.log_func("Killing zombie tor process.")
                 self.process.kill()
+
+        self.torRunning = False
 
         try:
             self.process.wait(5)

@@ -79,7 +79,6 @@ def run():
         os.system("")
 
     tor = TorRunner(args.output, frontend.tor_log)
-    tor.launch()
     d = downloader.Downloader(tor, frontend, solver)
 
     # Register sigint handler

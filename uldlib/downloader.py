@@ -67,6 +67,7 @@ class Downloader:
         for p in self.threads:
             if p.is_alive():
                 p.join()
+        self.tor.stop()
 
         if not quiet:
             self.log('Download terminated.')
