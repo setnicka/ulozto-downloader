@@ -78,8 +78,8 @@ def run():
     if os.name == 'nt':
         os.system("")
 
-    tor = TorRunner(args.output)
-    tor.launch(solver.log)
+    tor = TorRunner(args.output, frontend.tor_log)
+    tor.launch()
     d = downloader.Downloader(tor, frontend, solver)
 
     # Register sigint handler

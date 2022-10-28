@@ -1,5 +1,6 @@
 import socket
 import sys
+from typing import Callable
 
 import stem.process
 from stem.control import Controller
@@ -15,10 +16,12 @@ from uldlib.utils import DownloaderError, LogLevel
 class TorRunner:
     """Running stem tor instance"""
     ddir: str
+    log_func: Callable
 
-    def __init__(self, ddir: str = ""):
+    def __init__(self, ddir: str, log_func: Callable):
         self.proxies = None
         self.torRunning = False
+        self.log_func = log_func
         uid = str(uuid.uuid4())
         self.ddir = os.path.join(ddir, f"{const.TOR_DATA_DIR_PREFIX}{uid}")
 
@@ -58,7 +61,7 @@ class TorRunner:
                 shutil.rmtree(self.ddir, ignore_errors=True)
             raise DownloaderError(f"Tor start failed: {e}, exiting. Try run program again.")
 
-    def start(self, log_func):
+    def start(self):
         os.mkdir(self.ddir)
         self.tor_ports = self._two_free_ports(41000)
         config = "SocksPort " + str(self.tor_ports[0]) + "\n"
@@ -75,9 +78,9 @@ class TorRunner:
             msg = re.findall(p, line)
 
             if len(msg) > 0:
-                log_func(f"Tor: {msg[0]}")  # log
+                self.log_func(msg[0], progress=True)
             if "Bootstrapped 100%" in line:
-                log_func("TOR is ready, download links started")
+                self.log_func("TOR is ready, download links started")
 
         self.process = stem.process.launch_tor(
             torrc_path=os.path.join(self.ddir, "torrc"),
@@ -90,10 +93,10 @@ class TorRunner:
 
     def stop(self):
         if hasattr(self, "process"):
-            print("Terminating tor..")
+            self.log_func("Terminating tor")
             self.process.terminate()
             if self.process.wait(10) is None:
-                print("Killing zombie tor process.")
+                self.log_func("Killing zombie tor process.")
                 self.process.kill()
 
         try:
@@ -103,7 +106,7 @@ class TorRunner:
 
         if os.path.exists(self.ddir):
             shutil.rmtree(self.ddir, ignore_errors=True)
-            print(f"Removed tor data dir: {self.ddir}")
+            self.log_func(f"Removed tor data dir: {self.ddir}")
 
     def __del__(self):
         self.stop()
