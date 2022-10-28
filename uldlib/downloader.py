@@ -52,20 +52,25 @@ class Downloader:
         self.stop_captcha = threading.Event()
         self.stop_frontend = threading.Event()
 
-    def terminate(self):
+    def terminate(self, quiet: bool = False):
         if self.terminating:
             return
         self.terminating = True
 
-        self.log('Terminating download. Please wait for stopping all threads.')
-        self.stop_captcha.set()
+        if not quiet:
+            self.log('Terminating download. Please wait for stopping all threads.')
+
         self.stop_download.set()
+        self.stop_captcha.set()
         if self.captcha_thread and self.captcha_thread.is_alive():
             self.captcha_thread.join()
         for p in self.threads:
             if p.is_alive():
                 p.join()
-        self.log('Download terminated.')
+
+        if not quiet:
+            self.log('Download terminated.')
+
         self.stop_frontend.set()
         if self.frontend_thread and self.frontend_thread.is_alive():
             self.frontend_thread.join()
@@ -77,11 +82,14 @@ class Downloader:
         else:
             msg = "Solve CAPTCHA dlink .."
 
-        for url in self.captcha_download_links_generator:
-            if self.stop_captcha.is_set():
-                break
-            self.captcha_solver.log(msg)
-            self.download_url_queue.put(url)
+        try:
+            for url in self.captcha_download_links_generator:
+                if self.stop_captcha.is_set():
+                    break
+                self.captcha_solver.log(msg)
+                self.download_url_queue.put(url)
+        except DownloaderError as e:
+            self.captcha_solver.log(str(e), level=LogLevel.ERROR)
 
     def _download_part(self, part: DownloadPart):
         try:
@@ -182,8 +190,7 @@ class Downloader:
             page.parse()
 
         except RuntimeError as e:
-            self.log('Cannot download file: ' + str(e), level=LogLevel.ERROR)
-            raise e
+            raise DownloaderError('Cannot download file: ' + str(e))
 
         # Do check - only if .udown status file not exists get question
         self.output_filename = os.path.join(target_dir, page.filename)
@@ -314,12 +321,7 @@ class Downloader:
             if part.error:
                 success = False
 
-        self.stop_captcha.set()
-        self.stop_frontend.set()
-        if self.captcha_thread and self.captcha_thread.is_alive():
-            self.captcha_thread.join()
-        if self.frontend_thread and self.frontend_thread.is_alive():
-            self.frontend_thread.join()
+        self.terminate(quiet=True)
 
         self.success = success
         # result end status
