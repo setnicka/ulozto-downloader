@@ -1,12 +1,13 @@
 from abc import abstractmethod
-from datetime import timedelta
+from datetime import datetime, timedelta
+from io import TextIOWrapper
 from traceback import print_exc
 import colors
 import os
 import sys
 import time
 import threading
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from uldlib import utils
 from uldlib.const import CLI_STATUS_STARTLINE
@@ -61,19 +62,26 @@ class Frontend():
 class ConsoleFrontend(Frontend):
     cli_initialized: bool
     show_parts: bool
+    logfile: Optional[TextIOWrapper] = None
 
     last_log: Tuple[str, LogLevel]
 
     last_captcha_log: Tuple[str, LogLevel]
     last_captcha_stats: Dict[str, int]
 
-    def __init__(self, show_parts: bool = False):
+    def __init__(self, show_parts: bool = False, logfile: str = ""):
         super().__init__(supports_prompt=True)
         self.cli_initialized = False
         self.last_log = ("", LogLevel.INFO)
         self.last_captcha_log = ("", LogLevel.INFO)
         self.last_captcha_stats = None
         self.show_parts = show_parts
+        if logfile:
+            self.logfile = open(logfile, 'a')
+
+    def __del__(self):
+        if self.logfile:
+            self.logfile.close()
 
     @staticmethod
     def _log_print(msg: str, progress: bool):
@@ -82,18 +90,29 @@ class ConsoleFrontend(Frontend):
         else:
             print(msg)
 
+    def _log_logfile(self, prefix: str, msg: str, progress: bool, level: LogLevel):
+        if progress or self.logfile is None:
+            return
+
+        t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.logfile.write(f"{t} {prefix}\t[{level.name}] {msg}\n")
+        self.logfile.flush()
+
     def tor_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
         self.last_captcha_log = (msg, level)  # shares same log with CAPTCHA
+        self._log_logfile('TOR ', msg, progress=progress, level=level)
         if not self.cli_initialized:
             self._log_print(colors.blue("[TOR]\t") + utils.color(msg, level), progress=progress)
 
     def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
         self.last_captcha_log = (msg, level)
+        self._log_logfile('CAPTCHA', msg, progress=progress, level=level)
         if not self.cli_initialized:
             self._log_print(colors.blue("[Link solve]\t") + utils.color(msg, level), progress=progress)
 
     def main_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
         self.last_log = (msg, level)
+        self._log_logfile('MAIN', msg, progress=progress, level=level)
         if not self.cli_initialized:
             self._log_print(utils.color(msg, level), progress=progress)
 

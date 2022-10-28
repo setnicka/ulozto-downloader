@@ -30,12 +30,14 @@ def run():
                         help='Solve CAPTCHAs by manual input')
     parser.add_argument('--conn-timeout', metavar='SEC', default=const.DEFAULT_CONN_TIMEOUT, type=int,
                         help='Set connection timeout for TOR sessions in seconds')
+    parser.add_argument('--log', metavar='LOGFILE', type=str, default="",
+                        help="Enable logging to given file")
     parser.add_argument('--version', action='version', version=__version__)
 
     args = parser.parse_args()
 
     # TODO: implement other frontends and allow to choose from them
-    frontend = ConsoleFrontend(show_parts=args.parts_progress)
+    frontend = ConsoleFrontend(show_parts=args.parts_progress, logfile=args.log)
 
     tfull_available = importlib.util.find_spec('tensorflow') and importlib.util.find_spec('tensorflow.lite')
     tflite_available = importlib.util.find_spec('tflite_runtime')
