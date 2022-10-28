@@ -64,8 +64,9 @@ yum install tor
 
 Na Windows lze instalovat [TorBrowser](https://www.torproject.org/download/)
 a dostat `tor.exe` do `%PATH%`, tedy přidat do systémové proměnné `%PATH`
-složku s `tor.exe` v instalaci TorBrowseru
-([náhodný externí návod](https://cz.moyens.net/windows/co-je-windows-path-a-jak-jej-pridavate-a-upravujete/)).
+složku s `tor.exe` z instalace TorBrowseru (typicky `C:\Program Files\Tor Browser\Browser\TorBrowser\Tor`).
+
+* Náhodný externí [návod na přidání do `%PATH%`](https://cz.moyens.net/windows/co-je-windows-path-a-jak-jej-pridavate-a-upravujete/).
 
 ### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
 
@@ -129,7 +130,8 @@ pip3 install --upgrade ulozto-downloader[auto-captcha]  # <-- doporučeno
 
 ## Instalace na dalších platformách
 
-### [Android - Termux](doc/install.md)
+* [Android - Termux](doc/install.md#android---termux)
+* [MacOS](doc/install.md#macos)
 
 ## Použití
 
@@ -159,3 +161,7 @@ Pokud chcete ukládat log do souboru, použijte přepínač `--log <název soubo
 Při využití automatického louskání doporučuji využít velký počet částí, klidně
 50 (spustíte `ulozto-downloader` a necháte ho pracovat, on si postupně louskne
 další stahovací linky a postupně navyšuje počet najednou stahovaných částí).
+
+## Další návody a dokumentace
+
+* [Vytvoření Windows EXE](doc/win_exe.md)
