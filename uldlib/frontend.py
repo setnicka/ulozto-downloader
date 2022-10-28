@@ -139,9 +139,6 @@ class ConsoleFrontend(Frontend):
         y = 0
 
         while True:
-            if stop_event.is_set():
-                break
-
             t = time.time()
             # Get parts info
             lines = []
@@ -210,9 +207,13 @@ class ConsoleFrontend(Frontend):
                         colors.blue(f"[Part {part.id}]") + f"\t{line}",
                         y=(y + part.id))
 
+            if stop_event.is_set():
+                break
+
             time.sleep(0.5)
 
         if self.cli_initialized:
+            y = info.parts + CLI_STATUS_STARTLINE + 4
             sys.stdout.write("\033[{};{}H".format(y + 2, 0))
             sys.stdout.write("\033[?25h")  # show cursor
             self.cli_initialized = False
