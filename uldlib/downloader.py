@@ -190,7 +190,7 @@ class Downloader:
             page = Page(url, target_dir, parts, self.tor, self.conn_timeout)
             page.parse()
 
-        except RuntimeError as e:
+        except Exception as e:
             raise DownloaderError('Cannot download file: ' + str(e))
 
         # Do check - only if .udown status file not exists get question

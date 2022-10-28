@@ -62,6 +62,14 @@ class Page:
         self.conn_timeout = conn_timeout
 
         parsed_url = urlparse(self.url)
+        if parsed_url.scheme == "":
+            # Common mistake when copied from addres bar without https://
+            self.url = "https://" + self.url
+            parsed_url = urlparse(self.url)
+
+        if not parsed_url.hostname:
+            raise RuntimeError(f"Invalid url {self.url}")
+
         self.pagename = parsed_url.hostname.capitalize()
         self.cli_initialized = False
         self.alreadyDownloaded = 0
