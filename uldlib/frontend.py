@@ -29,16 +29,24 @@ class Frontend():
     def __init__(self, supports_prompt: bool):
         self.supports_prompt = supports_prompt
 
+    # Log functions for TOR, CAPTCHA solver and for everything else
+    # - `progress` is used by some frontends, when True it means that this message
+    #   is progress (progress bar or similar) and should not be logged / should be overwritten
+
     @abstractmethod
-    def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO):
+    def tor_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
+        pass
+
+    @abstractmethod
+    def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
+        pass
+
+    @abstractmethod
+    def main_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
         pass
 
     @abstractmethod
     def captcha_stats(self, stats: Dict[str, int]):
-        pass
-
-    @abstractmethod
-    def main_log(self, msg: str, level: LogLevel = LogLevel.INFO):
         pass
 
     @abstractmethod
@@ -67,21 +75,30 @@ class ConsoleFrontend(Frontend):
         self.last_captcha_stats = None
         self.show_parts = show_parts
 
-    def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO):
+    @staticmethod
+    def _log_print(msg: str, progress: bool):
+        if progress:
+            sys.stdout.write(msg + "\033[K\r")
+        else:
+            print(msg)
+
+    def tor_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
+        self.last_captcha_log = (msg, level)  # shares same log with CAPTCHA
+        if not self.cli_initialized:
+            self._log_print(colors.blue("[TOR]\t") + utils.color(msg, level), progress=progress)
+
+    def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
         self.last_captcha_log = (msg, level)
         if not self.cli_initialized:
-            sys.stdout.write(colors.blue(
-                "[Link solve]\t") + utils.color(msg, level) + "\033[K\r")
+            self._log_print(colors.blue("[Link solve]\t") + utils.color(msg, level), progress=progress)
+
+    def main_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
+        self.last_log = (msg, level)
+        if not self.cli_initialized:
+            self._log_print(utils.color(msg, level), progress=progress)
 
     def captcha_stats(self, stats: Dict[str, int]):
         self.last_captcha_stats = stats
-
-    def main_log(self, msg: str, level: LogLevel = LogLevel.INFO):
-        self.last_log = (msg, level)
-
-        if self.cli_initialized:
-            return
-        print(utils.color(msg, level))
 
     def prompt(self, msg: str, level: LogLevel = LogLevel.INFO) -> str:
         print(utils.color(msg, level), end="")
