@@ -37,6 +37,85 @@ s webovým rozhraním.
 
 ## Instalace
 
+Mimo instalace samotného ulozto-downloaderu je potřeba zajistit ještě několik
+dalších věcí:
+
+* **TOR** pro získávání download linků z různých IP adres a vyhnutí se limitaci
+* Jeden z:
+  * **TensorFlow Lite** pro automatické louskání CAPTCHA kódů
+  * **Tkinter** když budete používat ruční opisování CAPTCHA kódů
+
+### Instalace TORu
+
+Tor je program umožňující přistupovat na cílovou stránku přes jiné počítače a tím
+obejít limitaci na počet stahovacích linků z jedné IP adresy.
+
+Ulož.to downloader vyžaduje spustitelný příkaz `tor` (vnitřně používá stem)
+a očekává tento příkaz v `$PATH`.
+
+Na Linuxu:
+
+```shell
+sudo apt install tor
+  # nebo...
+yum install tor
+  # nebo podle vašeho balíčkovacího systému
+```
+
+Na Windows lze instalovat [TorBrowser](https://www.torproject.org/download/)
+a dostat `tor.exe` do `%PATH%`, tedy přidat do systémové proměnné `%PATH`
+složku s `tor.exe` v instalaci TorBrowseru
+([náhodný externí návod](https://cz.moyens.net/windows/co-je-windows-path-a-jak-jej-pridavate-a-upravujete/)).
+
+### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
+
+TensorFlow Lite je balíček, který umožní spouštět na CAPTCHA obrázcích
+natrénovanou neuronovou síť a tím je automaticky louskat.
+
+Dá se použít buď odlehčený Python balíček `tflite-runtime`, nebo plnotučný
+Python balíčku `tensorflow` (vydávání `tflite-runtime` se často opožďuje, proto
+je často potřeba s novým Pythonem sáhnout po plnotučné verzi).
+
+Oba balíky se dají instalovat přes Python instalátor `pip3`. Odlehčený
+`tflite-runtime` se dá instalovat i společně s celým Ulož.to downloaderem, když
+použijete při instalaci `ulozto-downloader[auto-captcha]`, nebo ručně
+následujícím příkazem:
+
+```shell
+pip3 install tflite-runtime
+```
+
+Pokud vám tato metoda nefunguje (instalace vypisuje "Could not find a version
+that satisfies the requirement"), je potřeba instalovat plnotučný `tensorflow`
+(pozor, zabere po instalaci asi 1GB):
+
+```shell
+pip3 install tensorflow
+```
+
+Pokud vám žádná z metod výše nefunguje, postupujte podle instrukcí na stránce
+[TensorFlow Lite](https://www.tensorflow.org/lite/guide/python), kde si buď
+instalujte balík do systému a nebo si stáhněte z odkazu správný Wheel soubor
+podle své verze Pythonu (zjistíte zavoláním `python3 -V`).
+
+Verzi pro Windows nebo pokud vám instalace hází chybu stáhněte z repozitáře
+[pycoral](https://github.com/google-coral/pycoral/releases)
+
+### Instalace Tkinter (ruční opisování CAPTCHA)
+
+Pokud se vám nepovede rozchodit TensorFlow Lite pro automatické louskání (nebo
+chcete poměřit síly s natrénovaným modelem a louskat ručně), potřebujete na
+systému instalovaný Tkinter na zobrazení okénka s obrázkem.
+
+Bohužel není na PyPI, takže je potřeba instalovat ručně. Často už je instalovaný,
+ale pokud by náhodou nebyl, tak bývá v balíčku `python3-tk` (případně následujte
+instrukce na [webu Tk](https://tkdocs.com/tutorial/install.html)).
+
+### Instalace Ulož.to downloaderu
+
+Teď už byste měli mít vše připraveno. Stačí jen instalovat samotný Ulož.to
+downloader.
+
 Nejjednodušší je využít verzi uveřejněnou na [PyPI](https://pypi.org/project/ulozto-downloader/).
 Pokud máte platformu, pro který existuje na PyPI validní balíček
 [`tflite-runtime`](https://pypi.org/project/tflite-runtime/), můžete rovnou
@@ -44,44 +123,9 @@ instalovat speciální target s `[auto-captcha]` a ulehčit si tak instalaci
 TensorFlow Lite.
 
 ```shell
-$ pip3 install --upgrade ulozto-downloader
-$ pip3 install --upgrade ulozto-downloader[auto-captcha]  # <-- doporučeno
+pip3 install --upgrade ulozto-downloader
+pip3 install --upgrade ulozto-downloader[auto-captcha]  # <-- doporučeno
 ```
-
-### Instalace TORu
-
-Program vyžaduje spustitelný tor, protože používá stem a očekává ho v `$PATH`.
-
-* Na Linuxu stačí:
-
-  ```shell
-  $ sudo apt install tor
-  # nebo...
-  $ yum install tor
-  # nebo podle vašeho balíčkovacího systému
-  ```
-
-* Na Windows lze instalovat [TorBrowser](https://www.torproject.org/download/)
-  a dostat `tor.exe` do `%PATH%`
-
-### Instalace TensorFlow Lite (automatické louskání CAPTCHA)
-
-Pokud jste ho instalovali automaticky přes pip, již netřeba nic řešit. Pokud pro
-vaší platformu není dostupný na [PyPI](https://pypi.org/project/tflite-runtime/),
-postupujte podle instrukcí na stránce [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python),
-kde si buď instalujte balík do systému a nebo si stáhněte z odkazu správný Wheel
-soubor podle své verze Pythonu (zjistíte zavoláním `python3 -V`).
-
-Verzi pro windows nebo pokud vám instalace hází chybu stáhněte z repozitáře [pycoral](https://github.com/google-coral/pycoral/releases)
-
-### Instalace Tkinter (ruční opisování CAPTCHA)
-
-Potřebujete na systému instalovaný Tkinter (bohužel není na PyPI, takže je
-potřeba instalovat ručně).
-
-Často už je instalovaný, ale pokud by náhodou nebyl, tak bývá v balíčku
-`python3-tk` (případně následujte instrukce na
-[webu Tk](https://tkdocs.com/tutorial/install.html)).
 
 ## Instalace na dalších platformách
 
@@ -98,11 +142,17 @@ ruční opisování. Pro vynucení chování můžete použít přepínače:
 
 Pokud není dostupný žádný solver, lze stahovat jen soubory bez CAPTCHA.
 
-Pro volbu počtu částí slouží přepínač `--parts N`, default je 20 částí.
+Pro volbu počtu částí slouží přepínač `--parts N`, default je 20 částí. Ve
+výchozím nastavení Ulož.to downloader zobrazuje pouze sumární stav. Pokud chcete
+zobrazit stav stahování jednotlivých částí, použijte přepínač
+`--parts-progress`.
 
 ```shell
-$ ulozto-downloader --parts 50 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
+ulozto-downloader --parts 30 --parts-progress "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
 ```
+
+Pokud chcete ukládat log do souboru, použijte přepínač `--log <název souboru>`
+(v defaultním nastavení se log neukládá).
 
 ![Ukázka stahování](https://raw.githubusercontent.com/setnicka/ulozto-downloader/master/example-screenshot.png)
 
