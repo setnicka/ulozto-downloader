@@ -1,5 +1,4 @@
 import socket
-import sys
 from typing import Callable
 
 import stem.process
@@ -10,7 +9,7 @@ import shutil
 import re
 
 from uldlib import const
-from uldlib.utils import DownloaderError, LogLevel
+from uldlib.utils import DownloaderError
 
 
 class TorRunner:

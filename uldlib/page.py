@@ -1,10 +1,8 @@
 import re
-import shutil
 import threading
 from typing import Type
 from urllib.parse import urlparse, urljoin
 from os import path
-import sys
 import requests
 
 from uldlib.captcha import CaptchaSolver
