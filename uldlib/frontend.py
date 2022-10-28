@@ -8,6 +8,7 @@ import time
 import threading
 from typing import Dict, List, Tuple
 
+from uldlib import utils
 from uldlib.const import CLI_STATUS_STARTLINE
 from uldlib.part import DownloadPart
 from uldlib.utils import LogLevel
@@ -23,6 +24,10 @@ class DownloadInfo:
 
 
 class Frontend():
+    supports_prompt: bool
+
+    def __init__(self, supports_prompt: bool):
+        self.supports_prompt = supports_prompt
 
     @abstractmethod
     def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO):
@@ -41,7 +46,7 @@ class Frontend():
         pass
 
     @abstractmethod
-    def run(self, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
+    def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
         pass
 
 
@@ -55,6 +60,7 @@ class ConsoleFrontend(Frontend):
     last_captcha_stats: Dict[str, int]
 
     def __init__(self, show_parts: bool = False):
+        super().__init__(supports_prompt=True)
         self.cli_initialized = False
         self.last_log = ("", LogLevel.INFO)
         self.last_captcha_log = ("", LogLevel.INFO)
@@ -65,7 +71,7 @@ class ConsoleFrontend(Frontend):
         self.last_captcha_log = (msg, level)
         if not self.cli_initialized:
             sys.stdout.write(colors.blue(
-                "[Link solve]\t") + self._color(msg, level) + "\033[K\r")
+                "[Link solve]\t") + utils.color(msg, level) + "\033[K\r")
 
     def captcha_stats(self, stats: Dict[str, int]):
         self.last_captcha_stats = stats
@@ -75,10 +81,10 @@ class ConsoleFrontend(Frontend):
 
         if self.cli_initialized:
             return
-        print(self._color(msg, level))
+        print(utils.color(msg, level))
 
     def prompt(self, msg: str, level: LogLevel = LogLevel.INFO) -> str:
-        print(self._color(msg, level), end="")
+        print(utils.color(msg, level), end="")
         return input().strip()
 
     @staticmethod
@@ -97,16 +103,6 @@ class ConsoleFrontend(Frontend):
         sys.stdout.write("\033[K")
         sys.stdout.write(text)
         sys.stdout.flush()
-
-    @staticmethod
-    def _color(text: str, level: LogLevel) -> str:
-        if level == LogLevel.WARNING:
-            return colors.yellow(text)
-        if level == LogLevel.ERROR:
-            return colors.red(text)
-        if level == LogLevel.SUCCESS:
-            return colors.green(text)
-        return text
 
     def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
         try:
@@ -152,7 +148,7 @@ class ConsoleFrontend(Frontend):
             s = 0
             for part in parts:
                 (line, level, size) = part.get_frontend_status()
-                lines.append(self._color(line, level))
+                lines.append(utils.color(line, level))
                 s += size
 
             y = CLI_STATUS_STARTLINE
@@ -161,7 +157,7 @@ class ConsoleFrontend(Frontend):
             (msg, level) = self.last_captcha_log
             self._print(
                 colors.yellow("[Link solve]\t") +
-                self._color(msg, level),
+                utils.color(msg, level),
                 y=y
             )
             y += 1
@@ -202,7 +198,7 @@ class ConsoleFrontend(Frontend):
             (msg, level) = self.last_log
             self._print(
                 colors.yellow("[STATUS]\t") +
-                self._color(msg, level),
+                utils.color(msg, level),
                 y=y
             )
             y += 1

@@ -201,7 +201,6 @@ class Page:
         """
 
         self.numTorLinks = 0
-        self.torRunning = False
         self.cacheEmpty = False
         self.linkCache = LinkCache(path.join(self.target_dir, self.filename))
 
@@ -217,26 +216,11 @@ class Page:
             if stop_event and stop_event.is_set():
                 break
 
-            if not self.torRunning:
-                print("Starting TOR...")
-                # tor started after cli initialized
-                try:
-                    self.tor.start(log_func=solver.log)
-                    self.torRunning = True
-                    proxies = {
-                        'http': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0]),
-                        'https': 'socks5://127.0.0.1:' + str(self.tor.tor_ports[0])
-                    }
+            if not self.tor.torRunning:
+                print("TOR needs to be running...")
+                sys.exit(1)
 
-                except OSError as e:
-                    self._error_net_stat(
-                        f"Tor start failed: {e}, exiting.. try run program again..", solver.log)
-                    # remove tor data
-                    if path.exists(self.tor.ddir):
-                        shutil.rmtree(self.tor.ddir, ignore_errors=True)
-                    sys.exit(1)
-
-            # reload tor after 1. use or all except badCatcha case
+            # reload tor after 1. use or all except badCaptcha case
             reload = False
             if self.stats["all"] > 0 or reload:
                 self.tor.reload()
@@ -254,7 +238,7 @@ class Page:
                 if self.isDirectDownload:
                     solver.log(f"TOR get downlink (timeout {self.conn_timeout})")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, proxies=proxies, timeout=self.conn_timeout)
+                                 headers=XML_HEADERS, proxies=self.tor.proxies, timeout=self.conn_timeout)
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
                     r = s.get(self.captchaURL, headers=XML_HEADERS)
@@ -285,7 +269,7 @@ class Page:
                     solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout})")
 
                     resp = s.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, proxies=proxies, timeout=self.conn_timeout)
+                                  headers=XML_HEADERS, proxies=self.tor.proxies, timeout=self.conn_timeout)
 
                 # generate result or break
                 result = self._link_validation_stat(resp, solver.log)
