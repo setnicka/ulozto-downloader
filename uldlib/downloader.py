@@ -32,14 +32,22 @@ class Downloader:
 
     download_url_queue: Queue
     parts: int
+    tor: TorRunner
 
-    def __init__(self, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+    def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+        self.success = None
+        self.target_dir = None
+        self.url = None
+        self.filename = None
+        self.output_filename = None
+        self.total_size = None
         self.frontend = frontend
         self.log = frontend.main_log
         self.captcha_solver = captcha_solver
 
         self.cli_initialized = False
         self.conn_timeout = None
+        self.tor = tor
 
         self.stop_download = threading.Event()
         self.stop_captcha = threading.Event()
@@ -53,13 +61,14 @@ class Downloader:
         self.log('Terminating download. Please wait for stopping all threads.')
         self.stop_captcha.set()
         self.stop_download.set()
-        if self.captcha_thread:
+        if self.captcha_thread and self.captcha_thread.is_alive():
             self.captcha_thread.join()
         for p in self.threads:
-            p.join()
+            if p.is_alive():
+                p.join()
         self.log('Download terminated.')
         self.stop_frontend.set()
-        if self.frontend_thread:
+        if self.frontend_thread and self.frontend_thread.is_alive():
             self.frontend_thread.join()
 
     def _captcha_breaker(self, page, parts):
@@ -170,23 +179,26 @@ class Downloader:
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            tor = TorRunner()
-            page = Page(url, target_dir, parts, tor, self.conn_timeout)
+            page = Page(url, target_dir, parts, self.tor, self.conn_timeout)
             page.parse()
 
         except RuntimeError as e:
-            self.log('Cannot download file: ' + str(e), error=True)
-            sys.exit(1)
+            self.log('Cannot download file: ' + str(e), level=LogLevel.ERROR)
+            raise e
 
         # Do check - only if .udown status file not exists get question
-        output_filename = os.path.join(target_dir, page.filename)
-        if os.path.isfile(output_filename) and not os.path.isfile(output_filename+DOWNPOSTFIX):
-            answer = self.frontend.prompt(
-                "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(output_filename),
-                level=LogLevel.WARNING
-            )
-            if answer != 'y':
-                sys.exit(1)
+        self.output_filename = os.path.join(target_dir, page.filename)
+        self.filename = page.filename
+        # .udown file is always present in cli_mode = False
+        if os.path.isfile(self.output_filename) and not os.path.isfile(self.output_filename + DOWNPOSTFIX):
+            if self.frontend.supports_prompt:
+                answer = self.frontend.prompt(
+                    "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(self.output_filename), level=LogLevel.WARNING)
+                if answer != 'y':
+                    sys.exit(1)
+            else:
+                self.log("WARNING: File '{}' already exists, but .udown file not present. File will be overwritten.."
+                         .format(self.output_filename), level=LogLevel.WARNING)
 
         info = DownloadInfo()
         info.filename = page.filename
@@ -218,16 +230,16 @@ class Downloader:
             download_url = next(self.captcha_download_links_generator)
 
         head = requests.head(download_url, allow_redirects=True)
-        total_size = int(head.headers['Content-Length'])
+        self.total_size = int(head.headers['Content-Length'])
 
         try:
-            file_data = SegFileLoader(output_filename, total_size, parts)
+            file_data = SegFileLoader(self.output_filename, self.total_size, parts)
             writers = file_data.make_writers()
         except Exception as e:
-            self.log(f"Failed: Can not create '{output_filename}' error: {e} ", level=LogLevel.ERROR)
+            self.log(f"Failed: Can not create '{self.output_filename}' error: {e} ", level=LogLevel.ERROR)
             sys.exit(1)
 
-        info.total_size = total_size
+        info.total_size = self.total_size
         info.part_size = file_data.part_size
         info.parts = file_data.parts
 
@@ -307,14 +319,15 @@ class Downloader:
 
         self.stop_captcha.set()
         self.stop_frontend.set()
-        if self.captcha_thread:
+        if self.captcha_thread and self.captcha_thread.is_alive():
             self.captcha_thread.join()
-        if self.frontend_thread:
+        if self.frontend_thread and self.frontend_thread.is_alive():
             self.frontend_thread.join()
 
+        self.success = success
         # result end status
         if not success:
             self.log("Failure of one or more downloads, exiting", level=LogLevel.ERROR)
-            sys.exit(1)
+            return
 
         self.log("All downloads successfully finished", level=LogLevel.SUCCESS)

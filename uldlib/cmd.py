@@ -1,12 +1,12 @@
 import argparse
 import importlib.util
-import sys
 import signal
 import os
+import sys
 from os import path
-from uldlib import downloader, captcha, __version__, __path__
-from uldlib.const import DEFAULT_CONN_TIMEOUT
+from uldlib import downloader, captcha, __version__, __path__, const
 from uldlib.frontend import ConsoleFrontend
+from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
 
 
@@ -27,7 +27,7 @@ def run():
                         help='Try to solve CAPTCHAs automatically using TensorFlow')
     parser.add_argument('--manual-captcha', default=False, action="store_true",
                         help='Solve CAPTCHAs by manual input')
-    parser.add_argument('--conn-timeout', metavar='SEC', default=DEFAULT_CONN_TIMEOUT, type=int,
+    parser.add_argument('--conn-timeout', metavar='SEC', default=const.DEFAULT_CONN_TIMEOUT, type=int,
                         help='Set connection timeout for TOR sessions in seconds')
     parser.add_argument('--version', action='version', version=__version__)
 
@@ -62,9 +62,8 @@ def run():
             frontend.main_log('ERROR: --auto-captcha used but neither tensorflow.lite nor tflite_runtime are available', level=LogLevel.ERROR)
             sys.exit(1)
 
-        model_path = path.join(__path__[0], "model.tflite")
-        model_download_url = "https://github.com/JanPalasek/ulozto-captcha-breaker/releases/download/v2.2/model.tflite"
-        solver = captcha.AutoReadCaptcha(model_path, model_download_url, frontend)
+        model_path = path.join(__path__[0], const.MODEL_FILENAME)
+        solver = captcha.AutoReadCaptcha(model_path, const.MODEL_DOWNLOAD_URL, frontend)
     elif args.manual_captcha:
         if not tkinter_available:
             frontend.main_log('ERROR: --manual-captcha used but tkinter not available', level=LogLevel.ERROR)
@@ -78,7 +77,9 @@ def run():
     if os.name == 'nt':
         os.system("")
 
-    d = downloader.Downloader(frontend, solver)
+    tor = TorRunner(args.output)
+    tor.launch(solver.log)
+    d = downloader.Downloader(tor, frontend, solver)
 
     # Register sigint handler
     def sigint_handler(sig, frame):
@@ -90,5 +91,12 @@ def run():
 
     signal.signal(signal.SIGINT, sigint_handler)
 
-    d.download(args.url, args.parts, args.output, args.conn_timeout)
-    d.terminate()
+    try:
+        d.download(args.url, args.parts, args.output, args.conn_timeout)
+        # remove resume .udown file
+        udown_file = d.output_filename + const.DOWNPOSTFIX
+        if os.path.exists(udown_file):
+            print(f"Delete file: {udown_file}")
+            os.remove(udown_file)
+    finally:
+        d.terminate()

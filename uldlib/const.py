@@ -9,3 +9,6 @@ CACHEPOSTFIX = '.ucache'
 DOWN_CHUNK_SIZE = 20480
 OUTFILE_WRITE_BUF = 20480
 DEFAULT_CONN_TIMEOUT = 30
+MODEL_DOWNLOAD_URL = "https://github.com/JanPalasek/ulozto-captcha-breaker/releases/download/v2.2/model.tflite"
+TOR_DATA_DIR_PREFIX = "tor_data_dir_"
+MODEL_FILENAME = "model.tflite"
