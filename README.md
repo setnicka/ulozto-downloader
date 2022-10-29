@@ -85,6 +85,7 @@ následujícím příkazem:
 ```shell
 pip3 install tflite-runtime
 ```
+
 **Verzi pro Windows** (nebo pokud vám instalace hází chybu) stáhněte z repozitáře
 [pycoral](https://github.com/google-coral/pycoral/releases)
 
@@ -100,8 +101,6 @@ Pokud vám žádná z metod výše nefunguje, postupujte podle instrukcí na str
 [TensorFlow Lite](https://www.tensorflow.org/lite/guide/python), kde si buď
 instalujte balík do systému a nebo si stáhněte z odkazu správný Wheel soubor
 podle své verze Pythonu (zjistíte zavoláním `python3 -V`).
-
-
 
 ### Instalace Tkinter (ruční opisování CAPTCHA)
 
