@@ -50,4 +50,4 @@ jobs:
         with:
           context: "{{defaultContext}}"
           push: true
-          tags: "ghcr.io/${{env.IMAGE_REPOSITORY}}:${{env.IMAGE_TAG}}"
+          tags: "ghcr.io/${{env.IMAGE_REPOSITORY}}:${{env.IMAGE_TAG}},ghcr.io/${{env.IMAGE_REPOSITORY}}:latest"
