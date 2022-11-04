@@ -38,10 +38,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - 
+        name: Prepare image name
+        run: |
+          echo IMAGE_REPOSITORY=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]') >> $GITHUB_ENV
+          echo IMAGE_TAG=$(echo ${{ github.ref_name }} | tr '[:upper:]' '[:lower:]') >> $GITHUB_ENV
       -
         name: Build and push image
         uses: docker/build-push-action@v3
         with:
           context: "{{defaultContext}}"
           push: true
-          tags: "ghcr.io/${{github.repository}}:${{github.ref_name}}"
+          tags: "ghcr.io/${{IMAGE_REPOSITORY}}:${{IMAGE_TAG}}"
