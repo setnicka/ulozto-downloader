@@ -44,4 +44,4 @@ jobs:
         with:
           context: "{{defaultContext}}"
           push: true
-          tags: ghcr.io/{{ github.repository }}:{{ github.ref_name }}
+          tags: "ghcr.io/${{github.repository}}:${{github.ref_name}}"
