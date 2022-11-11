@@ -268,7 +268,6 @@ class ConsoleFrontend(Frontend):
         ))
 
 class JsonFrontend(Frontend):
-    cli_initialized: bool
     show_parts: bool
     logfile: Optional[TextIOWrapper] = None
 
@@ -279,7 +278,6 @@ class JsonFrontend(Frontend):
 
     def __init__(self, show_parts: bool = False, logfile: str = ""):
         super().__init__(supports_prompt=True)
-        self.cli_initialized = False
         self.last_log = ("", LogLevel.INFO)
         self.last_captcha_log = ("", LogLevel.INFO)
         self.last_captcha_stats = None
@@ -329,39 +327,14 @@ class JsonFrontend(Frontend):
         #print(utils.color(msg, level), end="")
         return input().strip()
 
-    @staticmethod
-    def _stat_fmt(stats: Dict[str, int]):
-        count = colors.blue(stats['all'])
-        ok = colors.green(stats['ok'])
-        bad = colors.red(stats['bad'])
-        lim = colors.red(stats['lim'])
-        blo = colors.red(stats['block'])
-        net = colors.red(stats['net'])
-        return f"[Ok: {ok} / {count}] :( [Badcp: {bad} Limited: {lim} Censored: {blo} NetErr: {net}]"
-
-    @staticmethod
-    def _print(text, x=0, y=0):
-        sys.stdout.write("\033[{};{}H".format(y, x))
-        sys.stdout.write("\033[K")
-        sys.stdout.write(text)
-        sys.stdout.flush()
-
     def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
         try:
             self._loop(info, parts, stop_event)
         except Exception:
-            if self.cli_initialized:
-                y = info.parts + CLI_STATUS_STARTLINE + 4
-                sys.stdout.write("\033[{};{}H".format(y, 0))
-                sys.stdout.write("\033[?25h")  # show cursor
-                self.cli_initialized = False
-                print("")
             print_exc()
             terminate_func()
 
     def _loop(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event):
-        self.cli_initialized = True
-
         jsonReport = JsonReport(info)
 
         t_start = time.time()
@@ -371,16 +344,12 @@ class JsonFrontend(Frontend):
             s_start += size
         last_bps = [(s_start, t_start)]
 
-        y = 0
-
         while True:
             t = time.time()
             # Get parts info
-            lines = []
             s = 0
             for part in parts:
                 (line, level, size) = part.get_frontend_status()
-                lines.append(utils.color(line, level))
                 s += size
 
             # Print overall progress line
@@ -396,21 +365,13 @@ class JsonFrontend(Frontend):
                 now_bps = (s - s_last) / (t - t_last)
                 last_bps.append((s, t))
 
-            remaining = (info.total_size - s) / total_bps if total_bps > 0 else 0
-
-            jsonReport.update(s, total_bps, now_bps, remaining)
+            jsonReport.update(s, total_bps, now_bps)
             print(jsonReport)
 
             if stop_event.is_set():
                 break
 
             time.sleep(0.5)
-
-        if self.cli_initialized:
-            y = info.parts + CLI_STATUS_STARTLINE + 4
-            sys.stdout.write("\033[{};{}H".format(y + 2, 0))
-            sys.stdout.write("\033[?25h")  # show cursor
-            self.cli_initialized = False
 
         elapsed = time.time() - t_start
         # speed in bytes per second:
@@ -437,11 +398,13 @@ class JsonReport:
         self.size = f"{round(info.total_size / 1024**2, 2)} MB"
         self.size_float = info.total_size
 
-    def update(self, down_size, total_bps, now_bps, remaining):
+    def update(self, down_size, total_bps, now_bps):
         self.downloaded = f"{(down_size / 1024 ** 2):.2f} MB",
         self.percent = f"{(down_size / self.size_float * 100):.2f} %",
         self.avg_speed = f"{(total_bps / 1024 ** 2):.2f} MB/s",
         self.curr_speed = f"{(now_bps / 1024 ** 2):.2f} MB/s",
+       
+        remaining = (self.size_float - down_size) / total_bps if total_bps > 0 else 0
         self.remaining = f"{timedelta(seconds=round(remaining))}"
 
     def __str__(self) -> str:
