@@ -5,8 +5,8 @@ import os
 import sys
 from os import path
 from uldlib import downloader, captcha, __version__, __path__, const
+from uldlib.frontend import ConsoleFrontend, JsonFrontend
 from uldlib import utils
-from uldlib.frontend import ConsoleFrontend
 from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
 
@@ -33,11 +33,16 @@ def run():
     parser.add_argument('--log', metavar='LOGFILE', type=str, default="",
                         help="Enable logging to given file")
     parser.add_argument('--version', action='version', version=__version__)
+    parser.add_argument('--script', default=False, action="store_true",
+                        help="Use JsonFrontend to produce JSON progress output for use in script")
 
     args = parser.parse_args()
 
     # TODO: implement other frontends and allow to choose from them
-    frontend = ConsoleFrontend(show_parts=args.parts_progress, logfile=args.log)
+    if args.script:
+        frontend = JsonFrontend(show_parts=args.parts_progress, logfile=args.log)
+    else:
+        frontend = ConsoleFrontend(show_parts=args.parts_progress, logfile=args.log)
 
     tfull_available = importlib.util.find_spec('tensorflow') and importlib.util.find_spec('tensorflow.lite')
     tflite_available = importlib.util.find_spec('tflite_runtime')
@@ -88,7 +93,7 @@ def run():
         if d.terminating:
             return  # Already terminating
         d.terminate()
-        print('Program terminated.')
+        frontend.main_log('Program terminated.')
         sys.exit(1)
 
     signal.signal(signal.SIGINT, sigint_handler)
@@ -98,7 +103,7 @@ def run():
         # remove resume .udown file
         udown_file = d.output_filename + const.DOWNPOSTFIX
         if os.path.exists(udown_file):
-            print(f"Delete file: {udown_file}")
+            frontend.main_log(f"Delete file: {udown_file}")
             os.remove(udown_file)
     except utils.DownloaderStopped:
         pass

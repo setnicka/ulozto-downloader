@@ -9,6 +9,11 @@ class LogLevel(Enum):
     ERROR = 3
     SUCCESS = 4
 
+class Status(str, Enum):
+    INITIALIZING: str = "initializing",
+    DOWNLOADING: str = "downloading",
+    COMPLETED: str = "completed",
+    ERROR: str = "error"
 
 def color(text: str, level: LogLevel) -> str:
     if level == LogLevel.WARNING:
