@@ -286,6 +286,9 @@ class Page:
                     self.linkCache.add(dlink)
                     self.numTorLinks += 1
                     yield dlink
+                elif self.isDirectDownload:
+                    solver.log("Direct download does no seem to work, trying with captcha resolution instead...")
+                    self.isDirectDownload = False
 
             except requests.exceptions.ConnectionError:
                 self._error_net_stat(
