@@ -9,6 +9,7 @@ from sys import byteorder
 class SegFile:
     """Implementation segment file"""
     file: str
+    stat_file: str
     parts: int
     id: int
 
@@ -20,8 +21,9 @@ class SegFile:
     sfp: FileIO
     sbs: int
 
-    def __init__(self, file: str, parts: int, seg_idx: int):
+    def __init__(self, file: str, stat_file: str, parts: int, seg_idx: int):
         self.file = file
+        self.stat_file = stat_file
         self.parts = parts
         self.id = seg_idx
         self.open()
@@ -32,7 +34,7 @@ class SegFile:
 
     def _load_stat(self):
         # open stat file - must exists - buffering 0 - no need flush()
-        self.sfp = open(self.file + const.DOWNPOSTFIX, 'rb+', 0)
+        self.sfp = open(self.stat_file, 'rb+', 0)
         # byte size of stat segment
         self.sbs = int.from_bytes(self.sfp.read(1), byteorder)
         # total_size
@@ -83,8 +85,9 @@ class SegFileWriter(SegFile):
 
 
 class SegFileLoader:
-    def __init__(self, filename: str, size: int, parts: int):
-        self.filename = filename
+    def __init__(self, file: str, stat_file: str, size: int, parts: int):
+        self.file = file
+        self.stat_file = stat_file
         self.size = size
         self.parts = parts
         self._first_created = False
@@ -100,10 +103,10 @@ class SegFileLoader:
             parts = self._get_parts_from_existing()
             self.parts = parts
 
-        return [SegFileWriter(self.filename, parts, i) for i in range(parts)]
+        return [SegFileWriter(self.file, self.stat_file, parts, i) for i in range(parts)]
 
     def _get_parts_from_existing(self):
-        self.sfp = open(self.filename + const.DOWNPOSTFIX, 'rb')
+        self.sfp = open(self.stat_file, 'rb')
         sbs = int.from_bytes(self.sfp.read(1), byteorder)
         size = int.from_bytes(self.sfp.read(sbs), byteorder)
 
@@ -120,10 +123,10 @@ class SegFileLoader:
             return parts
 
     def _create_files_if_not_ex(self):
-        if not os.path.isfile(self.filename + const.DOWNPOSTFIX):
-            self.fp = open(self.filename, 'wb+')
+        if not os.path.isfile(self.stat_file):
+            self.fp = open(self.file, 'wb+')
             self.fp.truncate(self.size)
-            self.sfp = open(self.filename + const.DOWNPOSTFIX, 'wb+')
+            self.sfp = open(self.stat_file, 'wb+')
 
             self._make_stat_file_data(self.size, self.parts)
             self._first_created = True

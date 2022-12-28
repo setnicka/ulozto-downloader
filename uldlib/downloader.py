@@ -45,6 +45,7 @@ class Downloader:
         self.url = None
         self.filename = None
         self.output_filename = None
+        self.stat_filename = None
         self.total_size = None
         self.frontend = frontend
         self.log = frontend.main_log
@@ -203,9 +204,10 @@ class Downloader:
 
         # Do check - only if .udown status file not exists get question
         self.output_filename = os.path.join(target_dir, page.filename)
+        self.stat_filename = os.path.join(target_dir, page.filename + DOWNPOSTFIX)
         self.filename = page.filename
         # .udown file is always present in cli_mode = False
-        if os.path.isfile(self.output_filename) and not os.path.isfile(self.output_filename + DOWNPOSTFIX):
+        if os.path.isfile(self.output_filename) and not os.path.isfile(self.stat_filename):
             if self.frontend.supports_prompt:
                 answer = self.frontend.prompt(
                     "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(self.output_filename), level=LogLevel.WARNING)
@@ -247,7 +249,7 @@ class Downloader:
         self.total_size = int(head.headers['Content-Length'])
 
         try:
-            file_data = SegFileLoader(self.output_filename, self.total_size, parts)
+            file_data = SegFileLoader(self.output_filename, self.stat_filename, self.total_size, parts)
             writers = file_data.make_writers()
         except Exception as e:
             raise DownloaderError(f"Failed: Can not create '{self.output_filename}' error: {e} ")
