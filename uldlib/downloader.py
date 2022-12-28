@@ -55,10 +55,6 @@ class Downloader:
         self.conn_timeout = None
         self.tor = tor
 
-        self.stop_download = threading.Event()
-        self.stop_captcha = threading.Event()
-        self.stop_frontend = threading.Event()
-
     def terminate(self, quiet: bool = False):
         if self.terminating:
             return
@@ -196,6 +192,10 @@ class Downloader:
         self.terminating = False
         self.isLimited = False
         self.isCaptcha = False
+
+        self.stop_download = threading.Event()
+        self.stop_captcha = threading.Event()
+        self.stop_frontend = threading.Event()
 
         # 1. Prepare downloads
         self.log("Starting downloading for url '{}'".format(url))

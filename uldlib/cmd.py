@@ -16,8 +16,8 @@ def run():
         description='Download file from Uloz.to using multiple parallel downloads.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument('url', metavar='URL', type=str,
-                        help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
+    parser.add_argument('urls', metavar='URL', nargs="+", type=str,
+                        help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign). Multiple URLs could be specified, they will be downloaded sequentially.")
     parser.add_argument('--parts', metavar='N', type=int, default=20,
                         help='Number of parts that will be downloaded in parallel')
     parser.add_argument('--parts-progress', default=False, action='store_true',
@@ -97,9 +97,10 @@ def run():
     signal.signal(signal.SIGINT, sigint_handler)
 
     try:
-        d.download(args.url, args.parts, args.output, args.temp, args.conn_timeout)
-        # do clean only on successful download (no exception)
-        d.clean()
+        for url in args.urls:
+            d.download(url, args.parts, args.output, args.temp, args.conn_timeout)
+            # do clean only on successful download (no exception)
+            d.clean()
     except utils.DownloaderStopped:
         pass
     except utils.DownloaderError as e:
