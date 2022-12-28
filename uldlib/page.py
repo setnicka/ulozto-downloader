@@ -1,6 +1,6 @@
 import re
 import threading
-from typing import Type
+from typing import Optional, Type
 from urllib.parse import urlparse, urljoin
 from os import path
 import requests
@@ -42,6 +42,8 @@ class Page:
     isDirectDownload: bool
     numTorLinks: int
     alreadyDownloaded: int
+
+    linkCache: Optional[LinkCache] = None
 
     def __init__(self, url: str, temp_dir: str, parts: int, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.

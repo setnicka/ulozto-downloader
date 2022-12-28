@@ -32,6 +32,7 @@ class Downloader:
     download_url_queue: Queue
     parts: int
     tor: TorRunner
+    page: Page
 
     def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
         """Initialize the Downloader.
@@ -80,6 +81,13 @@ class Downloader:
         self.stop_frontend.set()
         if self.frontend_thread and self.frontend_thread.is_alive():
             self.frontend_thread.join()
+
+    def clean(self):
+        # remove resume .udown file
+        if os.path.exists(self.stat_filename):
+            os.remove(self.stat_filename)
+        if self.page.linkCache is not None:
+            self.page.linkCache.clean()
 
     def _captcha_breaker(self, page, parts):
         msg = ""
@@ -195,7 +203,8 @@ class Downloader:
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            page = Page(url, temp_dir, parts, self.tor, self.conn_timeout)
+            self.page = Page(url, temp_dir, parts, self.tor, self.conn_timeout)
+            page = self.page  # shortcut
             page.parse()
 
         except Exception as e:

@@ -98,10 +98,8 @@ def run():
 
     try:
         d.download(args.url, args.parts, args.output, args.temp, args.conn_timeout)
-        # remove resume .udown file
-        if os.path.exists(d.stat_filename):
-            print(f"Delete file: {d.stat_filename}")
-            os.remove(d.stat_filename)
+        # do clean only on successful download (no exception)
+        d.clean()
     except utils.DownloaderStopped:
         pass
     except utils.DownloaderError as e:

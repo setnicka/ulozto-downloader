@@ -1,5 +1,6 @@
 from os import path, remove
 from math import ceil
+import os
 from time import time
 import re
 from .const import CACHEPOSTFIX
@@ -17,6 +18,10 @@ class LinkCache:
         self.filename = filename
         self.cachefile = self.filename + CACHEPOSTFIX
         self.invsec = invsec
+
+    def clean(self):
+        if path.exists(self.cachefile):
+            os.remove(self.cachefile)
 
     def add(self, link):
         """add new link to cache and add usage index (set to 1)"""
