@@ -1,5 +1,19 @@
 # Ulož.to downloader
 
+## Language disclaimer (English)
+
+This is a parallel downloader from [Ulož.to](http://ulozto.cz) with automatic
+CAPTCHA solving. This README is in Czech but the program itself and its help are
+in English (try to run it with `--help` option).
+
+When contributing to this project, please use English in the code. Issues and
+pull request comments could be in Czech or English, I will discuss them
+according to the thread language :)
+
+---
+
+## Úvod
+
 Paralelní stahovač z [Ulož.to](http://ulozto.cz) inspirovaný
 [Vžum](http://vzum.8u.cz/) (credits to Popcorn) s automatickým louskáním CAPTCHA
 kódů pomocí TensorFlow modelu z projektu
@@ -37,8 +51,16 @@ s webovým rozhraním.
 
 ## Instalace
 
-Mimo instalace samotného ulozto-downloaderu je potřeba zajistit ještě několik
-dalších věcí:
+Ulož.to downloader je napsaný v Pythonu a je distribuovaný v podobě zdrojových
+kódů, které si každý může spustit, pokud má nainstalovaný Python. Předtím než
+s čímkoliv začnete, ujistěte se prosím, že máte:
+
+* **Nainstalovaný Python 3** – externí [návod na instalaci](https://naucse.python.cz/lessons/beginners/install/)
+* Umíte **instalovat Python balíky pomocí příkazu `pip` nebo `pip3` v příkazové řádce**
+  – malý externí [návod na Pip](https://ksp.mff.cuni.cz/encyklopedie/python-pip.html)
+
+Protože Ulož.to downloader závisí na několika externích projektech, bude mimo
+instalace samotného ulozto-downloaderu potřeba zajistit ještě několik dalších věcí:
 
 * **TOR** pro získávání download linků z různých IP adres a vyhnutí se limitaci
 * Jeden z:
@@ -135,6 +157,10 @@ pip3 install --upgrade ulozto-downloader[auto-captcha]  # <-- doporučeno
 
 ## Použití
 
+Při zavolání s `-h` nebo `--help` vypíše Ulož.to downloader popis všech svých
+přepínačů a nastavítek. Zde jsou vyjmenována základní nastavení, ale výčet není
+rozhodně kompletní.
+
 Od verze 3.1 je v defaultu aktivovaná autodetekce TensorFlow a pokud je instalované,
 tak se použije pro automatické louskání louskání CAPTCHA kódů, jinak se vypisuje
 ruční opisování. Pro vynucení chování můžete použít přepínače:
@@ -151,6 +177,13 @@ zobrazit stav stahování jednotlivých částí, použijte přepínač
 
 ```shell
 ulozto-downloader --parts 30 --parts-progress "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso"
+```
+
+Lze specifikovat i **více URL ke stažení**, v takovém případě probíhá stahování
+sekvenčně (po dostahování prvního se začne stahovat druhý atd.):
+
+```shell
+ulozto-downloader --parts 30 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso" "https://ulozto.cz/file/YPivhc3Jyn9r/debian-live-11-1-0-amd64-mate-iso"
 ```
 
 Pokud chcete ukládat log do souboru, použijte přepínač `--log <název souboru>`
