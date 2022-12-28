@@ -231,7 +231,7 @@ class ConsoleFrontend(Frontend):
             (msg, level) = self.last_log
             self._print(
                 colors.yellow("[STATUS]\t") +
-                utils.color(msg, level),
+                (msg if level == LogLevel.INFO else colors.negative(utils.color(msg, level))),
                 y=y
             )
             y += 1

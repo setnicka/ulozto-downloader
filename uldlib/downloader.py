@@ -64,7 +64,7 @@ class Downloader:
         self.terminating = True
 
         if not quiet:
-            self.log('Terminating download. Please wait for stopping all threads.')
+            self.log('Terminating download. Please wait for stopping all threads.', level=LogLevel.WARNING)
 
         self.stop_download.set()
         self.stop_captcha.set()
@@ -75,7 +75,7 @@ class Downloader:
                 p.join()
 
         if not quiet:
-            self.log('Download terminated.')
+            self.log('Download terminated.', level=LogLevel.WARNING)
 
         self.stop_frontend.set()
         if self.frontend_thread and self.frontend_thread.is_alive():
