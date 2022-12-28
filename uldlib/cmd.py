@@ -88,6 +88,7 @@ def run():
         if d.terminating:
             return  # Already terminating
         d.terminate()
+        tor.stop()
         print('Program terminated.')
         sys.exit(1)
 
@@ -106,3 +107,4 @@ def run():
         frontend.main_log(str(e), level=LogLevel.ERROR)
     finally:
         d.terminate()
+        tor.stop()

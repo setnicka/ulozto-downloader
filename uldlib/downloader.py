@@ -34,6 +34,12 @@ class Downloader:
     tor: TorRunner
 
     def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+        """Initialize the Downloader.
+
+           The TorRunner could be launched or not, the .launch() method will be called when needed.
+           Also it is caller responsibility to call .stop() method on the TorRunner.
+        """
+
         self.success = None
         self.target_dir = None
         self.url = None
@@ -67,7 +73,6 @@ class Downloader:
         for p in self.threads:
             if p.is_alive():
                 p.join()
-        self.tor.stop()
 
         if not quiet:
             self.log('Download terminated.')
