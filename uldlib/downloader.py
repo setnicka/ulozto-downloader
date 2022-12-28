@@ -41,7 +41,6 @@ class Downloader:
         """
 
         self.success = None
-        self.target_dir = None
         self.url = None
         self.filename = None
         self.output_filename = None
@@ -173,16 +172,16 @@ class Downloader:
         # reuse download link if need
         self.download_url_queue.put(part.download_url)
 
-    def download(self, url, parts=10, target_dir="", conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def download(self, url: str, parts: int = 10, target_dir: str = "", temp_dir: str = "", conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Download file from Uloz.to using multiple parallel downloads.
             Arguments:
-                url (str): URL of the Uloz.to file to download
-                parts (int): Number of parts that will be downloaded in parallel (default: 10)
-                target_dir (str): Directory where the download should be saved (default: current directory)
+                url: URL of the Uloz.to file to download
+                parts: Number of parts that will be downloaded in parallel (default: 10)
+                target_dir: Directory where the download should be saved (default: current directory)
+                temp_dir: Directory where temporary files will be created (default: current directory)
         """
         self.url = url
         self.parts = parts
-        self.target_dir = target_dir
         self.conn_timeout = conn_timeout
 
         self.threads = []
@@ -196,7 +195,7 @@ class Downloader:
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            page = Page(url, target_dir, parts, self.tor, self.conn_timeout)
+            page = Page(url, temp_dir, parts, self.tor, self.conn_timeout)
             page.parse()
 
         except Exception as e:
@@ -204,7 +203,7 @@ class Downloader:
 
         # Do check - only if .udown status file not exists get question
         self.output_filename = os.path.join(target_dir, page.filename)
-        self.stat_filename = os.path.join(target_dir, page.filename + DOWNPOSTFIX)
+        self.stat_filename = os.path.join(temp_dir, page.filename + DOWNPOSTFIX)
         self.filename = page.filename
         # .udown file is always present in cli_mode = False
         if os.path.isfile(self.output_filename) and not os.path.isfile(self.stat_filename):

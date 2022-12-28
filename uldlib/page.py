@@ -43,12 +43,12 @@ class Page:
     numTorLinks: int
     alreadyDownloaded: int
 
-    def __init__(self, url, target_dir, parts, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def __init__(self, url: str, temp_dir: str, parts: int, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
                 url (str): URL of the page with file
-                target_dir (str): user defined output directory
+                temp_dir (str): directory where .ucache file will be created
                 parts (int): number of segments (parts)
                 tor: (TorRunner): tor runner instance
             Raises:
@@ -56,7 +56,7 @@ class Page:
         """
 
         self.url = strip_tracking_info(url)
-        self.target_dir = target_dir
+        self.temp_dir = temp_dir
         self.parts = parts
         self.tor = tor
         self.conn_timeout = conn_timeout
@@ -208,7 +208,7 @@ class Page:
 
         self.numTorLinks = 0
         self.cacheEmpty = False
-        self.linkCache = LinkCache(path.join(self.target_dir, self.filename))
+        self.linkCache = LinkCache(path.join(self.temp_dir, self.filename))
 
         while not self.cacheEmpty:
             cached = self.linkCache.get()

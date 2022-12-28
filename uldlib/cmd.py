@@ -23,7 +23,9 @@ def run():
     parser.add_argument('--parts-progress', default=False, action='store_true',
                         help='Show progress of parts while being downloaded')
     parser.add_argument('--output', metavar='DIRECTORY',
-                        type=str, default="./", help='Target directory')
+                        type=str, default="./", help='Directory where output file will be saved')
+    parser.add_argument('--temp', metavar='DIRECTORY',
+                        type=str, default="./", help='Directory where temporary files (.ucache, .udown, Tor data directory) will be created')
     parser.add_argument('--auto-captcha', default=False, action="store_true",
                         help='Try to solve CAPTCHAs automatically using TensorFlow')
     parser.add_argument('--manual-captcha', default=False, action="store_true",
@@ -80,7 +82,7 @@ def run():
     if os.name == 'nt':
         os.system("")
 
-    tor = TorRunner(args.output, frontend.tor_log)
+    tor = TorRunner(args.temp, frontend.tor_log)
     d = downloader.Downloader(tor, frontend, solver)
 
     # Register sigint handler
@@ -95,12 +97,11 @@ def run():
     signal.signal(signal.SIGINT, sigint_handler)
 
     try:
-        d.download(args.url, args.parts, args.output, args.conn_timeout)
+        d.download(args.url, args.parts, args.output, args.temp, args.conn_timeout)
         # remove resume .udown file
-        udown_file = d.output_filename + const.DOWNPOSTFIX
-        if os.path.exists(udown_file):
-            print(f"Delete file: {udown_file}")
-            os.remove(udown_file)
+        if os.path.exists(d.stat_filename):
+            print(f"Delete file: {d.stat_filename}")
+            os.remove(d.stat_filename)
     except utils.DownloaderStopped:
         pass
     except utils.DownloaderError as e:
