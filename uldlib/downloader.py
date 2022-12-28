@@ -176,12 +176,13 @@ class Downloader:
         # reuse download link if need
         self.download_url_queue.put(part.download_url)
 
-    def download(self, url: str, parts: int = 10, target_dir: str = "", temp_dir: str = "", conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def download(self, url: str, parts: int = 10, target_dir: str = "", temp_dir: str = "", do_overwrite: bool = False, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Download file from Uloz.to using multiple parallel downloads.
             Arguments:
                 url: URL of the Uloz.to file to download
                 parts: Number of parts that will be downloaded in parallel (default: 10)
                 target_dir: Directory where the download should be saved (default: current directory)
+                do_overwrite: Overwrite files without asking
                 temp_dir: Directory where temporary files will be created (default: current directory)
         """
         self.url = url
@@ -216,7 +217,7 @@ class Downloader:
         self.filename = page.filename
         # .udown file is always present in cli_mode = False
         if os.path.isfile(self.output_filename) and not os.path.isfile(self.stat_filename):
-            if self.frontend.supports_prompt:
+            if self.frontend.supports_prompt and not do_overwrite:
                 answer = self.frontend.prompt(
                     "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(self.output_filename), level=LogLevel.WARNING)
                 if answer != 'y':

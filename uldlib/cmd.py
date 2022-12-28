@@ -24,6 +24,8 @@ def run():
                         help='Show progress of parts while being downloaded')
     parser.add_argument('--output', metavar='DIRECTORY',
                         type=str, default="./", help='Directory where output file will be saved')
+    parser.add_argument('-y', '--yes', default=False, action="store_true",
+                        help='Overwrite files without asking')
     parser.add_argument('--temp', metavar='DIRECTORY',
                         type=str, default="./", help='Directory where temporary files (.ucache, .udown, Tor data directory) will be created')
     parser.add_argument('--auto-captcha', default=False, action="store_true",
@@ -98,7 +100,7 @@ def run():
 
     try:
         for url in args.urls:
-            d.download(url, args.parts, args.output, args.temp, args.conn_timeout)
+            d.download(url, args.parts, args.output, args.temp, args.yes, args.conn_timeout)
             # do clean only on successful download (no exception)
             d.clean()
     except utils.DownloaderStopped:
