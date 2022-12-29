@@ -29,7 +29,7 @@ def run():
         help='Number of parts that will be downloaded in parallel')
     g_main.add_argument(
         '--output', metavar='DIRECTORY', type=str, default="./",
-        help='Directory where output file will be saved')
+        help='Directory or full path including file name where output file will be saved')
     g_main.add_argument(
         '--temp', metavar='DIRECTORY', type=str, default="./",
         help='Directory where temporary files (.ucache, .udown, Tor data directory) will be created')

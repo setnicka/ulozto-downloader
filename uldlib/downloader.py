@@ -212,9 +212,12 @@ class Downloader:
             raise DownloaderError('Cannot download file: ' + str(e))
 
         # Do check - only if .udown status file not exists get question
-        self.output_filename = os.path.join(target_dir, page.filename)
-        self.stat_filename = os.path.join(temp_dir, page.filename + DOWNPOSTFIX)
-        self.filename = page.filename
+        if not os.path.isdir(target_dir):
+            self.output_filename = target_dir
+        else:
+            self.output_filename = os.path.join(target_dir, page.filename)
+        self.filename = os.path.basename(self.output_filename)
+        self.stat_filename = os.path.join(temp_dir, self.filename + DOWNPOSTFIX)
         # .udown file is always present in cli_mode = False
         if os.path.isfile(self.output_filename) and not os.path.isfile(self.stat_filename):
             if self.frontend.supports_prompt and not do_overwrite:
@@ -227,7 +230,7 @@ class Downloader:
                          .format(self.output_filename), level=LogLevel.WARNING)
 
         info = DownloadInfo()
-        info.filename = page.filename
+        info.filename = self.filename
         info.url = page.url
 
         if page.quickDownloadURL is not None:
