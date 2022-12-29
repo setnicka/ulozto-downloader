@@ -211,13 +211,18 @@ class Downloader:
         except Exception as e:
             raise DownloaderError('Cannot download file: ' + str(e))
 
-        # Do check - only if .udown status file not exists get question
-        if not os.path.isdir(target_dir):
+        # Check of the target is a file or directory and construct the output path accordingly
+        if not os.path.isdir(target_dir) and target_dir[-1] != '/':
+            # Path to a file has been provided
             self.output_filename = target_dir
         else:
+            # Create the output directory if does not exist
+            os.makedirs(target_dir, exist_ok = True)
             self.output_filename = os.path.join(target_dir, page.filename)
         self.filename = os.path.basename(self.output_filename)
         self.stat_filename = os.path.join(temp_dir, self.filename + DOWNPOSTFIX)
+        
+        # Do check - only if .udown status file not exists get question
         # .udown file is always present in cli_mode = False
         if os.path.isfile(self.output_filename) and not os.path.isfile(self.stat_filename):
             if self.frontend.supports_prompt and not do_overwrite:
