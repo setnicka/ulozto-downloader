@@ -222,6 +222,8 @@ class Downloader:
         self.filename = os.path.basename(self.output_filename)
         self.stat_filename = os.path.join(temp_dir, self.filename + DOWNPOSTFIX)
         
+        self.log("Downloading into: '{}'".format(self.output_filename))
+        
         # Do check - only if .udown status file not exists get question
         # .udown file is always present in cli_mode = False
         if os.path.isfile(self.output_filename) and not os.path.isfile(self.stat_filename):
