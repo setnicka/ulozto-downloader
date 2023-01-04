@@ -10,6 +10,8 @@ from uldlib import utils
 from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
 
+# TODO Automatic find all types implementing Frontend and put into this dict
+avaiable_frontends = { "console": ConsoleFrontend, "JSON": JsonFrontend }
 
 def run():
     parser = argparse.ArgumentParser(
@@ -33,16 +35,13 @@ def run():
     parser.add_argument('--log', metavar='LOGFILE', type=str, default="",
                         help="Enable logging to given file")
     parser.add_argument('--version', action='version', version=__version__)
-    parser.add_argument('--script', default=False, action="store_true",
-                        help="Use JsonFrontend to produce JSON progress output for use in script")
+    parser.add_argument('--frontend', type=str, default="console", choices=avaiable_frontends.keys(),
+                        help="Select frontend: 'console' - text user interface for humans, 'JSON' - output for scripts")
 
     args = parser.parse_args()
 
-    # TODO: implement other frontends and allow to choose from them
-    if args.script:
-        frontend = JsonFrontend(show_parts=args.parts_progress, logfile=args.log)
-    else:
-        frontend = ConsoleFrontend(show_parts=args.parts_progress, logfile=args.log)
+    # Use user chosen frontend
+    frontend = avaiable_frontends[args.frontend](show_parts=args.parts_progress, logfile=args.log)
 
     tfull_available = importlib.util.find_spec('tensorflow') and importlib.util.find_spec('tensorflow.lite')
     tflite_available = importlib.util.find_spec('tflite_runtime')
