@@ -5,13 +5,13 @@ import os
 import sys
 from os import path
 from uldlib import downloader, captcha, __version__, __path__, const
-from uldlib.frontend import ConsoleFrontend, JsonFrontend
+from uldlib.frontend import ConsoleFrontend, JSONFrontend
 from uldlib import utils
 from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
 
 # TODO Automatic find all types implementing Frontend and put into this dict
-avaiable_frontends = { "console": ConsoleFrontend, "JSON": JsonFrontend }
+avaiable_frontends = { "console": ConsoleFrontend, "JSON": JSONFrontend }
 
 def run():
     parser = argparse.ArgumentParser(

@@ -267,7 +267,7 @@ class ConsoleFrontend(Frontend):
             round(speed / 1024**2, 2)
         ))
 
-class JsonFrontend(Frontend):
+class JSONFrontend(Frontend):
     show_parts: bool
     logfile: Optional[TextIOWrapper] = None
 
@@ -335,7 +335,7 @@ class JsonFrontend(Frontend):
             terminate_func()
 
     def _loop(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event):
-        jsonReport = JsonReport(info)
+        jsonReport = JSONReport(info)
 
         t_start = time.time()
         s_start = 0
@@ -379,7 +379,7 @@ class JsonFrontend(Frontend):
 
         print(json.dumps({"status": Status.COMPLETED, "duration": str(timedelta(seconds=round(elapsed))), "avg_speed": f"{round(speed / 1024**2, 2)} MB/s"}))
 
-class JsonReport:
+class JSONReport:
     status: str
     file: str
     url: str
