@@ -306,11 +306,11 @@ class JSONFrontend(Frontend):
         self.logfile.flush()
 
     def tor_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
-        #print(json.dumps({"status": msg}))
+        print(json.dumps({"tor": msg}))
         pass
 
     def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
-        #print(json.dumps({"status": msg}))
+        print(json.dumps({"captcha": msg}))
         pass
 
     def main_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
@@ -403,7 +403,7 @@ class JSONReport:
         self.percent = f"{(down_size / self.size_float * 100):.2f} %",
         self.avg_speed = f"{(total_bps / 1024 ** 2):.2f} MB/s",
         self.curr_speed = f"{(now_bps / 1024 ** 2):.2f} MB/s",
-       
+        
         remaining = (self.size_float - down_size) / total_bps if total_bps > 0 else 0
         self.remaining = f"{timedelta(seconds=round(remaining))}"
 
