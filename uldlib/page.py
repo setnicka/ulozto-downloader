@@ -62,6 +62,8 @@ class Page:
         self.parts = parts
         self.tor = tor
         self.conn_timeout = conn_timeout
+        
+        self.tor.launch()  # ensure that TOR is running
 
         parsed_url = urlparse(self.url)
         if parsed_url.scheme == "":
@@ -81,7 +83,7 @@ class Page:
         cookies = None
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
         if parsed_url.hostname == "pornfile.cz":
-            r = requests.post("https://pornfile.cz/porn-disclaimer/", data={
+            r = requests.post("https://pornfile.cz/porn-disclaimer/", proxies=self.tor.proxies, data={
                 "agree": "Souhlasím",
                 "_do": "pornDisclaimer-submit",
             })
@@ -89,12 +91,12 @@ class Page:
 
         # If file is file-tracking link we need to get normal file link from it
         if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
-            r = requests.get(url, allow_redirects=False, cookies=cookies)
+            r = requests.get(url, proxies=self.tor.proxies, allow_redirects=False, cookies=cookies)
             if 'Location' in r.headers:
                 self.url = strip_tracking_info(r.headers['Location'])
                 parsed_url = urlparse(self.url)
 
-        r = requests.get(self.url, cookies=cookies)
+        r = requests.get(self.url, proxies=self.tor.proxies, cookies=cookies)
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
         if r.status_code == 451:
@@ -247,7 +249,7 @@ class Page:
                                  headers=XML_HEADERS, proxies=self.tor.proxies, timeout=self.conn_timeout)
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
-                    r = s.get(self.captchaURL, headers=XML_HEADERS)
+                    r = s.get(self.captchaURL, proxies=self.tor.proxies, headers=XML_HEADERS)
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(
