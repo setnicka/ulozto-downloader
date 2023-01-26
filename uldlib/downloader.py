@@ -108,8 +108,9 @@ class Downloader:
                 "Connection": "close",
             })
 
-            if r.status_code != 429:
-                break
+            if r.status_code != 206 and r.status_code != 200:
+                part.set_status(f"Status code {r.status_code} returned: {writer.pfrom + writer.written}/{writer.pto}", error=True)
+                return
 
             part.set_status("Status code 429 Too Many Requests returned… will try again in few seconds", warning=True)
             time.sleep(5)
