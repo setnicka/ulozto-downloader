@@ -107,12 +107,11 @@ class Downloader:
                 "Range": "bytes={}-{}".format(writer.pfrom + writer.written, writer.pto),
                 "Connection": "close",
             })
+            # add 425 code to conn. repeat
+            if (r.status_code != 429) and (r.status_code != 425):
+                break
 
-            if r.status_code != 206 and r.status_code != 200:
-                part.set_status(f"Status code {r.status_code} returned: {writer.pfrom + writer.written}/{writer.pto}", error=True)
-                return
-
-            part.set_status("Status code 429 Too Many Requests returned… will try again in few seconds", warning=True)
+            part.set_status("Status code 429/425 Too Many Requests returned… will try again in few seconds", warning=True)
             time.sleep(5)
 
         if r.status_code != 206 and r.status_code != 200:
