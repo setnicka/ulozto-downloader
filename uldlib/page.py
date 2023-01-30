@@ -42,16 +42,18 @@ class Page:
     isDirectDownload: bool
     numTorLinks: int
     alreadyDownloaded: int
+    password: str
 
     linkCache: Optional[LinkCache] = None
 
-    def __init__(self, url: str, temp_dir: str, parts: int, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def __init__(self, url: str, temp_dir: str, parts: int, password: str, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
                 url (str): URL of the page with file
                 temp_dir (str): directory where .ucache file will be created
                 parts (int): number of segments (parts)
+                password (str): password to access the Uloz.to file
                 tor: (TorRunner): tor runner instance
             Raises:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
@@ -60,6 +62,7 @@ class Page:
         self.url = strip_tracking_info(url)
         self.temp_dir = temp_dir
         self.parts = parts
+        self.password = password
         self.tor = tor
         self.conn_timeout = conn_timeout
 
@@ -100,9 +103,14 @@ class Page:
         if r.status_code == 451:
             raise RuntimeError(
                 f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
-        elif r.status_code != 200:
+        elif r.status_code == 401:
+            r = self.enter_password(r)
+        elif r.status_code == 404:
             raise RuntimeError(
                 f"{self.pagename} returned status code {r.status_code}, file does not exist")
+        elif r.status_code != 200:
+            raise RuntimeError(
+                f"{self.pagename} returned status code {r.status_code}, error: {r.text}")
 
         # Get file slug from URL
         self.slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
@@ -303,3 +311,34 @@ class Page:
                     "ReadTimeout error, try new TOR session.", solver.log)
 
             solver.stats(self.stats)
+
+    def enter_password(self, r, session=requests):
+
+        # TODO: allow entering the password through a UI
+        if not self.password:
+            # self.password = input(colors.yellow(f"File is password-protected, enter the password: ")).strip()
+            raise ValueError(f"The file requires a password. Provide it by re-running with '--password <password>'.")
+
+        r = session.post(
+            self.url,
+            data={
+                "password": self.password,
+                "password_send": "Odeslat",
+                "_do": "passwordProtectedForm-submit",
+            },
+            cookies=r.cookies,
+        )
+
+        # Accept the password and store (auth) cookies
+        if r.status_code == 200:
+            if session == requests:
+                # only print output if not inside TOR
+                print("Password accepted.")
+            return r
+
+        # Wrong password, try again
+        # TODO: allow entering the password through a UI
+        # print("Wrong password, will try again.")
+        # self.password = None
+        # return self.enter_password(r)
+        raise ValueError(f"Wrong password: '{self.password}'.")
