@@ -34,6 +34,8 @@ class Downloader:
     tor: TorRunner
     page: Page
 
+    password: str
+
     def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
         """Initialize the Downloader.
 
@@ -176,7 +178,7 @@ class Downloader:
         # reuse download link if need
         self.download_url_queue.put(part.download_url)
 
-    def download(self, url: str, parts: int = 10, target_dir: str = "", temp_dir: str = "", do_overwrite: bool = False, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def download(self, url: str, parts: int = 10, password: str = "", target_dir: str = "", temp_dir: str = "", do_overwrite: bool = False, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Download file from Uloz.to using multiple parallel downloads.
             Arguments:
                 url: URL of the Uloz.to file to download
@@ -184,6 +186,7 @@ class Downloader:
                 target_dir: Directory where the download should be saved (default: current directory)
                 do_overwrite: Overwrite files without asking
                 temp_dir: Directory where temporary files will be created (default: current directory)
+                password: Optional password to access the Uloz.to file
         """
         self.url = url
         self.parts = parts
@@ -204,7 +207,7 @@ class Downloader:
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            self.page = Page(url, temp_dir, parts, self.tor, self.conn_timeout)
+            self.page = Page(url, temp_dir, parts, password, self.tor, self.conn_timeout)
             page = self.page  # shortcut
             page.parse()
 
