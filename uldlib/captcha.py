@@ -56,6 +56,11 @@ class ManualInput(CaptchaSolver):
         # use width x height + x_offset + y_offset (no spaces!)
         root.geometry("300x140")
 
+        # make window popup on top
+        root.lift()
+        root.attributes('-topmost', True)
+        root.after(1, lambda: root.focus_force())
+
         def disable_event():
             pass
 
@@ -73,7 +78,7 @@ class ManualInput(CaptchaSolver):
         entry = tk.Entry(root)
         entry.pack()
         entry.bind('<Return>', lambda event: root.quit())
-        entry.focus()
+        entry.after(1, lambda: entry.focus_set())
 
         tk.Button(root, text='Send', command=root.quit).pack()
 
