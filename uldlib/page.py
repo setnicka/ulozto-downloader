@@ -30,7 +30,6 @@ def strip_tracking_info(url: str):
 class Page:
     url: str
     body: str
-    cookies: RequestsCookieJar
     baseURL: str
     slug: str
     pagename: str
@@ -81,30 +80,29 @@ class Page:
         self.stats = {"all": 0, "ok": 0, "bad": 0,
                       "lim": 0, "block": 0, "net": 0}  # statistics
 
-        cookies = None
+        s = requests.Session()
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
         if parsed_url.hostname == "pornfile.cz":
-            r = requests.post("https://pornfile.cz/porn-disclaimer/", data={
+            s.post("https://pornfile.cz/porn-disclaimer/", data={
                 "agree": "Souhlasím",
                 "_do": "pornDisclaimer-submit",
             })
-            cookies = r.cookies
 
         # If file is file-tracking link we need to get normal file link from it
         if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
-            r = requests.get(url, allow_redirects=False, cookies=cookies)
+            s.get(url, allow_redirects=False)
             if 'Location' in r.headers:
                 self.url = strip_tracking_info(r.headers['Location'])
                 parsed_url = urlparse(self.url)
 
-        r = requests.get(self.url, cookies=cookies)
+        r = s.get(self.url)
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
         if r.status_code == 451:
             raise RuntimeError(
                 f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
         elif r.status_code == 401:
-            r = self.enter_password(r)
+            r = self.enter_password(s)
         elif r.status_code == 404:
             raise RuntimeError(
                 f"{self.pagename} returned status code {r.status_code}, file does not exist")
@@ -312,7 +310,7 @@ class Page:
 
             solver.stats(self.stats)
 
-    def enter_password(self, r, session=requests):
+    def enter_password(self, session):
 
         # TODO: allow entering the password through a UI
         if not self.password:
@@ -325,8 +323,7 @@ class Page:
                 "password": self.password,
                 "password_send": "Odeslat",
                 "_do": "passwordProtectedForm-submit",
-            },
-            cookies=r.cookies,
+            }
         )
 
         # Accept the password and store (auth) cookies
