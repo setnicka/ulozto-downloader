@@ -69,6 +69,8 @@ class Page:
         self.tor = tor
         self.conn_timeout = conn_timeout
 
+        self.tor.launch()  # ensure that TOR is running
+
         parsed_url = urlparse(self.url)
         if parsed_url.scheme == "":
             # Common mistake when copied from addres bar without https://
@@ -85,6 +87,7 @@ class Page:
                       "lim": 0, "block": 0, "net": 0}  # statistics
 
         s = requests.Session()
+        s.proxies = self.tor.proxies
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
         if parsed_url.hostname == "pornfile.cz":
             s.post("https://pornfile.cz/porn-disclaimer/", data={
@@ -244,6 +247,7 @@ class Page:
 
             try:
                 s = requests.Session()
+                s.proxies = self.tor.proxies
                 if urlparse(self.url).hostname == "pornfile.cz":
                     r = s.post("https://pornfile.cz/porn-disclaimer/", data={
                         "agree": "Souhlasím",
@@ -263,7 +267,7 @@ class Page:
                 if self.isDirectDownload:
                     solver.log(f"TOR get downlink (timeout {self.conn_timeout})")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, proxies=self.tor.proxies, timeout=self.conn_timeout)
+                                 headers=XML_HEADERS, timeout=self.conn_timeout)
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
                     r = s.get(self.captchaURL, headers=XML_HEADERS)
@@ -294,7 +298,7 @@ class Page:
                     solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout})")
 
                     resp = s.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, proxies=self.tor.proxies, timeout=self.conn_timeout)
+                                  headers=XML_HEADERS, timeout=self.conn_timeout)
 
                 # generate result or break
                 result = self._link_validation_stat(resp, solver.log)
