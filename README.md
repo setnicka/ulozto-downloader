@@ -39,6 +39,7 @@ s webovým rozhraním.
     minutu, ale stejný link je možné používat po dostahování původní části
     opakovaně pro stahování dalších částí
 * Umí navazovat přerušená stahování (pokud se zachová stejný počet částí)
+* Umí stahovat zaheslované soubory (na straně Ulož.to)
 * Stahuje přímo do finálního souboru, jednotlivá stahování zapisují na správné
   místo v souboru (než program ohlásí dostahováno, je soubor neúplný)
 * Konzolový status panel se statistikou úspěšnosti při získávání linků
@@ -184,6 +185,12 @@ sekvenčně (po dostahování prvního se začne stahovat druhý atd.):
 
 ```shell
 ulozto-downloader --parts 30 "https://ulozto.cz/file/TKvQVDFBEhtL/debian-9-6-0-amd64-netinst-iso" "https://ulozto.cz/file/YPivhc3Jyn9r/debian-live-11-1-0-amd64-mate-iso"
+```
+
+Pro zadání hesla slouží přepínač `--password <heslo>`:
+
+```shell
+ulozto-downloader --parts 30 --password akcniset "https://uloz.to/file/FFwsQeBeMdcY/debian-9-6-0-amd64-netinst-iso"
 ```
 
 Pokud chcete ukládat log do souboru, použijte přepínač `--log <název souboru>`

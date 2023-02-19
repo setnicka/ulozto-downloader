@@ -6,7 +6,7 @@ from os import path
 import requests
 
 from uldlib.captcha import CaptchaSolver
-from uldlib.frontend import LogLevel
+from uldlib.frontend import LogLevel, Frontend
 from uldlib.torrunner import TorRunner
 
 from .const import XML_HEADERS, DEFAULT_CONN_TIMEOUT
@@ -30,7 +30,6 @@ def strip_tracking_info(url: str):
 class Page:
     url: str
     body: str
-    cookies: RequestsCookieJar
     baseURL: str
     slug: str
     pagename: str
@@ -42,17 +41,22 @@ class Page:
     isDirectDownload: bool
     numTorLinks: int
     alreadyDownloaded: int
+    password: str
+
+    needPassword: bool = False
 
     linkCache: Optional[LinkCache] = None
 
-    def __init__(self, url: str, temp_dir: str, parts: int, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def __init__(self, url: str, temp_dir: str, parts: int, password: str, frontend: Frontend, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
                 url (str): URL of the page with file
                 temp_dir (str): directory where .ucache file will be created
                 parts (int): number of segments (parts)
-                tor: (TorRunner): tor runner instance
+                password (str): password to access the Uloz.to file
+                frontend (Frontend): frontend object for password prompt (if supported)
+                tor (TorRunner): tor runner instance
             Raises:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
@@ -60,6 +64,8 @@ class Page:
         self.url = strip_tracking_info(url)
         self.temp_dir = temp_dir
         self.parts = parts
+        self.password = password
+        self.frontend = frontend
         self.tor = tor
         self.conn_timeout = conn_timeout
         
@@ -80,31 +86,37 @@ class Page:
         self.stats = {"all": 0, "ok": 0, "bad": 0,
                       "lim": 0, "block": 0, "net": 0}  # statistics
 
-        cookies = None
+        s = requests.Session()
+        s.proxies = self.tor.proxies
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
         if parsed_url.hostname == "pornfile.cz":
-            r = requests.post("https://pornfile.cz/porn-disclaimer/", proxies=self.tor.proxies, data={
+            s.post("https://pornfile.cz/porn-disclaimer/", data={
                 "agree": "Souhlasím",
                 "_do": "pornDisclaimer-submit",
             })
-            cookies = r.cookies
 
         # If file is file-tracking link we need to get normal file link from it
         if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
-            r = requests.get(url, proxies=self.tor.proxies, allow_redirects=False, cookies=cookies)
+            s.get(url, allow_redirects=False)
             if 'Location' in r.headers:
                 self.url = strip_tracking_info(r.headers['Location'])
                 parsed_url = urlparse(self.url)
 
-        r = requests.get(self.url, proxies=self.tor.proxies, cookies=cookies)
+        r = s.get(self.url)
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
 
         if r.status_code == 451:
             raise RuntimeError(
                 f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
-        elif r.status_code != 200:
+        elif r.status_code == 401:
+            self.needPassword = True
+            r = self.enter_password(s)
+        elif r.status_code == 404:
             raise RuntimeError(
                 f"{self.pagename} returned status code {r.status_code}, file does not exist")
+        elif r.status_code != 200:
+            raise RuntimeError(
+                f"{self.pagename} returned status code {r.status_code}, error: {r.text}")
 
         # Get file slug from URL
         self.slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
@@ -235,10 +247,19 @@ class Page:
 
             try:
                 s = requests.Session()
+                s.proxies = self.tor.proxies
                 if urlparse(self.url).hostname == "pornfile.cz":
                     r = s.post("https://pornfile.cz/porn-disclaimer/", data={
                         "agree": "Souhlasím",
                         "_do": "pornDisclaimer-submit",
+                    })
+
+                if self.needPassword:
+                    s.get(self.url)  # to obtain initial set of cookies
+                    s.post(self.url, data={
+                        "password": self.password,
+                        "password_send": "Odeslat",
+                        "_do": "passwordProtectedForm-submit",
                     })
 
                 resp = requests.Response()
@@ -246,10 +267,10 @@ class Page:
                 if self.isDirectDownload:
                     solver.log(f"TOR get downlink (timeout {self.conn_timeout})")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, proxies=self.tor.proxies, timeout=self.conn_timeout)
+                                 headers=XML_HEADERS, timeout=self.conn_timeout)
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
-                    r = s.get(self.captchaURL, proxies=self.tor.proxies, headers=XML_HEADERS)
+                    r = s.get(self.captchaURL, headers=XML_HEADERS)
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(
@@ -277,7 +298,7 @@ class Page:
                     solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout})")
 
                     resp = s.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, proxies=self.tor.proxies, timeout=self.conn_timeout)
+                                  headers=XML_HEADERS, timeout=self.conn_timeout)
 
                 # generate result or break
                 result = self._link_validation_stat(resp, solver.log)
@@ -305,3 +326,34 @@ class Page:
                     "ReadTimeout error, try new TOR session.", solver.log)
 
             solver.stats(self.stats)
+
+    def enter_password(self, session):
+
+        if not self.password and not self.frontend.supports_prompt:
+            raise ValueError("The file requires a password. Provide it by re-running with '--password <password>'.")
+
+        while True:
+            if not self.password:
+                self.password = self.frontend.prompt("File is password-protected, enter the password: ", level=LogLevel.WARNING)
+
+            r = session.post(
+                self.url,
+                data={
+                    "password": self.password,
+                    "password_send": "Odeslat",
+                    "_do": "passwordProtectedForm-submit",
+                }
+            )
+
+            # Accept the password and store (auth) cookies
+            if r.status_code == 200:
+                print("Password accepted.")
+                return r
+
+            # Wrong password - retry when using frontend with prompt
+            if self.frontend.supports_prompt:
+                self.frontend.main_log("Wrong password, try again", level=LogLevel.ERROR)
+                self.password = None
+                continue
+
+            raise ValueError("Wrong password")
