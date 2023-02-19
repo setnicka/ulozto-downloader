@@ -250,6 +250,14 @@ class Page:
                         "_do": "pornDisclaimer-submit",
                     })
 
+                if self.needPassword:
+                    s.get(self.url)  # to obtain initial set of cookies
+                    s.post(self.url, data={
+                        "password": self.password,
+                        "password_send": "Odeslat",
+                        "_do": "passwordProtectedForm-submit",
+                    })
+
                 resp = requests.Response()
 
                 if self.isDirectDownload:
