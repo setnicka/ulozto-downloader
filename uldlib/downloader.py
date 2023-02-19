@@ -207,7 +207,15 @@ class Downloader:
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            self.page = Page(url, temp_dir, parts, password, self.tor, self.conn_timeout)
+            self.page = Page(
+                url=url,
+                temp_dir=temp_dir,
+                parts=parts,
+                password=password,
+                frontend=self.frontend,
+                tor=self.tor,
+                conn_timeout=self.conn_timeout,
+            )
             page = self.page  # shortcut
             page.parse()
 
@@ -224,9 +232,9 @@ class Downloader:
             self.output_filename = os.path.join(target_dir, page.filename)
         self.filename = os.path.basename(self.output_filename)
         self.stat_filename = os.path.join(temp_dir, self.filename + DOWNPOSTFIX)
-        
+
         self.log("Downloading into: '{}'".format(self.output_filename))
-        
+
         # Do check - only if .udown status file not exists get question
         # .udown file is always present in cli_mode = False
         if os.path.isfile(self.output_filename) and not os.path.isfile(self.stat_filename):

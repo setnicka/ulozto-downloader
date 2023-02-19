@@ -6,7 +6,7 @@ from os import path
 import requests
 
 from uldlib.captcha import CaptchaSolver
-from uldlib.frontend import LogLevel
+from uldlib.frontend import LogLevel, Frontend
 from uldlib.torrunner import TorRunner
 
 from .const import XML_HEADERS, DEFAULT_CONN_TIMEOUT
@@ -43,9 +43,11 @@ class Page:
     alreadyDownloaded: int
     password: str
 
+    needPassword: bool = False
+
     linkCache: Optional[LinkCache] = None
 
-    def __init__(self, url: str, temp_dir: str, parts: int, password: str, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def __init__(self, url: str, temp_dir: str, parts: int, password: str, frontend: Frontend, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
@@ -53,7 +55,8 @@ class Page:
                 temp_dir (str): directory where .ucache file will be created
                 parts (int): number of segments (parts)
                 password (str): password to access the Uloz.to file
-                tor: (TorRunner): tor runner instance
+                frontend (Frontend): frontend object for password prompt (if supported)
+                tor (TorRunner): tor runner instance
             Raises:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
@@ -62,6 +65,7 @@ class Page:
         self.temp_dir = temp_dir
         self.parts = parts
         self.password = password
+        self.frontend = frontend
         self.tor = tor
         self.conn_timeout = conn_timeout
 
@@ -102,6 +106,7 @@ class Page:
             raise RuntimeError(
                 f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
         elif r.status_code == 401:
+            self.needPassword = True
             r = self.enter_password(s)
         elif r.status_code == 404:
             raise RuntimeError(
@@ -312,30 +317,31 @@ class Page:
 
     def enter_password(self, session):
 
-        # TODO: allow entering the password through a UI
-        if not self.password:
-            # self.password = input(colors.yellow(f"File is password-protected, enter the password: ")).strip()
-            raise ValueError(f"The file requires a password. Provide it by re-running with '--password <password>'.")
+        if not self.password and not self.frontend.supports_prompt:
+            raise ValueError("The file requires a password. Provide it by re-running with '--password <password>'.")
 
-        r = session.post(
-            self.url,
-            data={
-                "password": self.password,
-                "password_send": "Odeslat",
-                "_do": "passwordProtectedForm-submit",
-            }
-        )
+        while True:
+            if not self.password:
+                self.password = self.frontend.prompt("File is password-protected, enter the password: ", level=LogLevel.WARNING)
 
-        # Accept the password and store (auth) cookies
-        if r.status_code == 200:
-            if session == requests:
-                # only print output if not inside TOR
+            r = session.post(
+                self.url,
+                data={
+                    "password": self.password,
+                    "password_send": "Odeslat",
+                    "_do": "passwordProtectedForm-submit",
+                }
+            )
+
+            # Accept the password and store (auth) cookies
+            if r.status_code == 200:
                 print("Password accepted.")
-            return r
+                return r
 
-        # Wrong password, try again
-        # TODO: allow entering the password through a UI
-        # print("Wrong password, will try again.")
-        # self.password = None
-        # return self.enter_password(r)
-        raise ValueError(f"Wrong password: '{self.password}'.")
+            # Wrong password - retry when using frontend with prompt
+            if self.frontend.supports_prompt:
+                self.frontend.main_log("Wrong password, try again", level=LogLevel.ERROR)
+                self.password = None
+                continue
+
+            raise ValueError("Wrong password")
