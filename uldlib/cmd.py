@@ -28,6 +28,10 @@ def run():
         '--parts', metavar='N', type=int, default=20,
         help='Number of parts that will be downloaded in parallel')
     g_main.add_argument(
+        '--password', metavar='P', type=str, default="",
+        help='Optional password if the file is password-protected')
+
+    g_main.add_argument(
         '--output', metavar='DIRECTORY', type=str, default="./",
         help='Directory or full path including file name where output file will be saved')
     g_main.add_argument(
@@ -122,7 +126,7 @@ def run():
 
     try:
         for url in args.urls:
-            d.download(url, args.parts, args.output, args.temp, args.yes, args.conn_timeout)
+            d.download(url, args.parts, args.password, args.output, args.temp, args.yes, args.conn_timeout)
             # do clean only on successful download (no exception)
             d.clean()
     except utils.DownloaderStopped:
