@@ -213,7 +213,7 @@ class Page:
         self.linkCache = LinkCache(path.join(self.temp_dir, self.filename))
 
         while not self.cacheEmpty:
-            cached = self.linkCache.get()
+            cached = self.linkCache.get_all_valid_links()
             self.cacheEmpty = True
             for link in cached:
                 # linkCache.use(self.numTorLinks)
