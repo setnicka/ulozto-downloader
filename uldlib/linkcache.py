@@ -53,7 +53,7 @@ class LinkCache:
         if not cache_content:
             return None
         valid_links = [link.strip('\n') for link in cache_content if self._is_link_valid(link)]
-        if not (len(valid_links) < len(cache_content)):
+        if len(valid_links) == len(cache_content):
             # all links in cache are still valid
             return None
         self.delete_cache_file()
