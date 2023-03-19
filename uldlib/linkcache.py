@@ -28,7 +28,7 @@ class LinkCache:
 
     def _get_cache_content(self) -> list[str]:
         if os.path.exists(self.cache_file):
-            with open(self.cache_file, 'r+') as cache:
+            with open(self.cache_file, 'r') as cache:
                 return cache.readlines()
         return []
 
