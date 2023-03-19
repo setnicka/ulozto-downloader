@@ -35,7 +35,7 @@ class LinkCache:
     def get_all_valid_links(self) -> list[str]:
         """Returns only valid links from the cache"""
         cache_content = self._get_cache_content()
-        return [link.strip('\n') for link in cache_content if self._is_link_valid(link)]
+        return [link for link in cache_content if self._is_link_valid(link)]
 
     def _is_link_valid(self, link: str) -> bool:
         query_string = parse_qs(link, separator=';')
