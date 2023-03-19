@@ -34,8 +34,8 @@ class LinkCache:
 
     def get_all_valid_links(self) -> list[str]:
         """Returns only valid links from the cache"""
-        self._remove_invalid_links()
-        return self._get_cache_content()
+        cache_content = self._get_cache_content()
+        return [link.strip('\n') for link in cache_content if self._is_link_valid(link)]
 
     def _is_link_valid(self, link: str) -> bool:
         query_string = parse_qs(link, separator=';')
@@ -47,15 +47,3 @@ class LinkCache:
         time_now = int(time())
         # flag link as invalid {shorten_validity} second before it actually expires
         return time_now < (link_timestamp - self.shorten_validity)
-
-    def _remove_invalid_links(self) -> None:
-        cache_content = self._get_cache_content()
-        if not cache_content:
-            return None
-        valid_links = [link.strip('\n') for link in cache_content if self._is_link_valid(link)]
-        if len(valid_links) == len(cache_content):
-            # all links in cache are still valid
-            return None
-        self.delete_cache_file()
-        for link in valid_links:
-            self.add(link)
