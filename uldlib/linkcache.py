@@ -27,10 +27,10 @@ class LinkCache:
             cache.write(f"{link}\n")
 
     def _get_cache_content(self) -> list[str]:
-        if os.path.exists(self.cache_file):
-            with open(self.cache_file, 'r') as cache:
-                return cache.readlines()
-        return []
+        if not os.path.exists(self.cache_file):
+            return []
+        with open(self.cache_file, 'r') as cache:
+            return cache.readlines()
 
     def get_all_valid_links(self) -> list[str]:
         """Returns only valid links from the cache"""
