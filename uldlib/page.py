@@ -6,14 +6,12 @@ from os import path
 import requests
 
 from uldlib.captcha import CaptchaSolver
-from uldlib.frontend import LogLevel
+from uldlib.frontend import LogLevel, Frontend
 from uldlib.torrunner import TorRunner
 
 from .const import XML_HEADERS, DEFAULT_CONN_TIMEOUT
 from .crawler import UloztoCrawler
 from .linkcache import LinkCache
-
-from requests.sessions import RequestsCookieJar
 
 from .scraper import FileMetadataScraper
 
@@ -35,8 +33,6 @@ class Page:
     body: str
     baseURL: str
     slug: str
-    pagename: str
-
     filename: str
     slowDownloadURL: str
     quickDownloadURL: str
@@ -72,60 +68,12 @@ class Page:
 
         self.tor.launch()  # ensure that TOR is running
 
-        parsed_url = urlparse(self.url)
-        if parsed_url.scheme == "":
-            # Common mistake when copied from addres bar without https://
-            self.url = "https://" + self.url
-            parsed_url = urlparse(self.url)
-
-        if not parsed_url.hostname:
-            raise RuntimeError(f"Invalid url {self.url}")
-
-        self.pagename = parsed_url.hostname.capitalize()
         self.cli_initialized = False
         self.alreadyDownloaded = 0
         self.stats = {"all": 0, "ok": 0, "bad": 0,
                       "lim": 0, "block": 0, "net": 0}  # statistics
 
-        s = requests.Session()
-        s.proxies = self.tor.proxies
-        # special case for Pornfile.cz run by Uloz.to - confirmation is needed
-        if parsed_url.hostname == "pornfile.cz":
-            s.post("https://pornfile.cz/porn-disclaimer/", data={
-                "agree": "Souhlasím",
-                "_do": "pornDisclaimer-submit",
-            })
-
-        # If file is file-tracking link we need to get normal file link from it
-        if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
-            s.get(url, allow_redirects=False)
-            if 'Location' in r.headers:
-                self.url = strip_tracking_info(r.headers['Location'])
-                parsed_url = urlparse(self.url)
-
-        r = s.get(self.url)
-        self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
-
-        if r.status_code == 451:
-            raise RuntimeError(
-                f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
-        elif r.status_code == 401:
-            self.needPassword = True
-            r = self.enter_password(s)
-        elif r.status_code == 404:
-            raise RuntimeError(
-                f"{self.pagename} returned status code {r.status_code}, file does not exist")
-        elif r.status_code != 200:
-            raise RuntimeError(
-                f"{self.pagename} returned status code {r.status_code}, error: {r.text}")
-
-        # Get file slug from URL
-        self.slug = parse_single(parsed_url.path, r'/file/([^\\]*)/')
-        if self.slug is None:
-            raise RuntimeError(
-                f"Cannot parse file slug from {self.pagename} URL")
-
-        self.body = r.text
+        self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=urlparse(self.url))
 
     def parse(self):
         """Try to parse all information from the page (filename, download links, ...)
