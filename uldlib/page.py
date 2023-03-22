@@ -6,13 +6,16 @@ from os import path
 import requests
 
 from uldlib.captcha import CaptchaSolver
-from uldlib.frontend import LogLevel, Frontend
+from uldlib.frontend import LogLevel
 from uldlib.torrunner import TorRunner
 
 from .const import XML_HEADERS, DEFAULT_CONN_TIMEOUT
+from .crawler import UloztoCrawler
 from .linkcache import LinkCache
 
 from requests.sessions import RequestsCookieJar
+
+from .scraper import FileMetadataScraper
 
 
 def parse_single(text, regex):
@@ -61,11 +64,9 @@ class Page:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
 
-        self.url = strip_tracking_info(url)
+        self.url = url
         self.temp_dir = temp_dir
         self.parts = parts
-        self.password = password
-        self.frontend = frontend
         self.tor = tor
         self.conn_timeout = conn_timeout
 
@@ -132,44 +133,22 @@ class Page:
         Raises:
             RuntimeError: When mandatory fields cannot be parsed.
         """
+        html_doc = UloztoCrawler(self.url).get_html_document()
+        file_metadata = FileMetadataScraper(html_doc)
 
-        # Parse filename only to the first | (Uloz.to sometimes add titles like "name | on-line video | Ulož.to" and so on)
-        self.filename = parse_single(self.body, r'<title>([^\|]*)\s+\|.*</title>')
-
-        # Replace illegal characters in filename https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
-        self.filename = re.sub(r'[<>:,\"/\\|\?*]', "-", self.filename)
-
-        download_found = False
-
-        self.quickDownloadURL = parse_single(self.body, r'href="(/quickDownload/[^"]*)"')
+        self.filename = file_metadata.filename
+        self.quickDownloadURL = file_metadata.quick_download_url
         if self.quickDownloadURL:
-            download_found = True
             self.quickDownloadURL = self.baseURL + self.quickDownloadURL
+        self.isDirectDownload = file_metadata.is_direct_download
 
-        # detect direct download from self.body
-        isDirect = parse_single(
-            self.body, r'data-href="/download-dialog/free/[^"]+" +class=".+(js-free-download-button-direct).+"')
-
-        if isDirect == 'js-free-download-button-direct':
-            self.isDirectDownload = True
-        else:
-            self.isDirectDownload = False
-
-        # Other files are protected by CAPTCHA challenge
-        # <a href="javascript:;" data-href="/download-dialog/free/default?fileSlug=apj0q49iETRR" class="c-button c-button__c-white js-free-download-button-dialog t-free-download-button">
-        self.captchaURL = parse_single(self.body, r'data-href="(/download-dialog/free/[^"]*)"')
+        self.captchaURL = file_metadata.captcha_url
         if self.captchaURL:
-            download_found = True
             self.captchaURL = self.baseURL + self.captchaURL
         self.slowDownloadURL = self.captchaURL
 
-        # Check if slowDirectDownload or form data for CAPTCHA was parsed
-        if not download_found:
-            raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
-                               + " no direct download URL and no CAPTCHA challenge URL found")
-
-    # print TOR network error and += stats
     def _error_net_stat(self, err, log_func):
+        """print TOR network error and += stats"""
         self.stats["all"] += 1
         log_func(f"Network error get new TOR connection: {err}", level=LogLevel.ERROR)
         self.stats["net"] += 1
@@ -223,16 +202,12 @@ class Page:
         """
 
         self.numTorLinks = 0
-        self.cacheEmpty = False
         self.linkCache = LinkCache(path.join(self.temp_dir, self.filename))
 
-        while not self.cacheEmpty:
-            cached = self.linkCache.get()
-            self.cacheEmpty = True
-            for link in cached:
-                # linkCache.use(self.numTorLinks)
-                self.numTorLinks += 1
-                yield link
+        cached = self.linkCache.get()
+        for link in cached:
+            self.numTorLinks += 1
+            yield link
 
         while (self.numTorLinks + self.alreadyDownloaded) < self.parts:
             if stop_event and stop_event.is_set():
@@ -280,7 +255,6 @@ class Page:
                         self.stats["all"] += 1
                         self.stats["net"] += 1
                         solver.stats(self.stats)
-                        reload = True
                         continue
 
                     captcha_data = {}
@@ -304,7 +278,7 @@ class Page:
                 result = self._link_validation_stat(resp, solver.log)
                 solver.stats(self.stats)
                 # for noreload (bad captcha no need reload TOR)
-                reload = result[1]
+
                 if result[0]:
                     dlink = resp.json()["slowDownloadLink"]
                     # cache link here

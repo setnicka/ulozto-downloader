@@ -9,7 +9,7 @@ import shutil
 import re
 
 from uldlib import const
-from uldlib.utils import DownloaderError
+from uldlib.exceptions import DownloaderError
 
 
 class TorRunner:

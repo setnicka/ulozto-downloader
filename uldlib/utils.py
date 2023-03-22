@@ -11,18 +11,9 @@ class LogLevel(Enum):
 
 
 def color(text: str, level: LogLevel) -> str:
-    if level == LogLevel.WARNING:
-        return colors.yellow(text)
-    if level == LogLevel.ERROR:
-        return colors.red(text)
-    if level == LogLevel.SUCCESS:
-        return colors.green(text)
-    return text
+    return {
+        LogLevel.SUCCESS: colors.green(text),
+        LogLevel.WARNING: colors.yellow(text),
+        LogLevel.ERROR: colors.red(text)
+    }.get(level, text)
 
-
-class DownloaderStopped(Exception):
-    pass
-
-
-class DownloaderError(Exception):
-    pass

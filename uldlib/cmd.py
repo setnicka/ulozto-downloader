@@ -4,8 +4,10 @@ import signal
 import os
 import sys
 from os import path
+
+import uldlib.exceptions
 from uldlib import downloader, captcha, __version__, __path__, const
-from uldlib import utils
+
 from uldlib.frontend import ConsoleFrontend
 from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
@@ -129,9 +131,9 @@ def run():
             d.download(url, args.parts, args.password, args.output, args.temp, args.yes, args.conn_timeout)
             # do clean only on successful download (no exception)
             d.clean()
-    except utils.DownloaderStopped:
+    except uldlib.exceptions.DownloaderStopped:
         pass
-    except utils.DownloaderError as e:
+    except uldlib.exceptions.DownloaderError as e:
         frontend.main_log(str(e), level=LogLevel.ERROR)
     finally:
         d.terminate()

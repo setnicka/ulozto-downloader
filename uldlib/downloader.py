@@ -12,7 +12,8 @@ from uldlib.page import Page
 from uldlib.part import DownloadPart
 from uldlib.segfile import SegFileLoader
 from uldlib.torrunner import TorRunner
-from uldlib.utils import DownloaderError, DownloaderStopped, LogLevel
+from uldlib.utils import LogLevel
+from uldlib.exceptions import DownloaderStopped, DownloaderError
 
 
 class Downloader:
