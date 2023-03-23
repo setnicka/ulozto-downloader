@@ -63,6 +63,8 @@ class Page:
         self.url = url
         self.temp_dir = temp_dir
         self.parts = parts
+        self.password = password
+        self.frontend = frontend
         self.tor = tor
         self.conn_timeout = conn_timeout
 
