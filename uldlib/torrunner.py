@@ -1,12 +1,7 @@
-import shutil
 from typing import Callable
 
 import stem.process
 import stem.control
-import os
-import uuid
-
-from uldlib import const
 from uldlib.utils import get_available_port
 
 TOR_CONFIG = {
@@ -42,22 +37,6 @@ class TorRunner:
             'http': f'socks5://127.0.0.1:{TOR_CONFIG.get("SocksPort")}',
             'https': f'socks5://127.0.0.1:{TOR_CONFIG.get("SocksPort")}'
         }
-        self._create_temp_directory()
-
-    def _create_temp_directory(self) -> None:
-        """
-        Creates Tor temp data directory if not exists.
-        """
-        self.temp_dir = os.path.join(self.temp_dir, f"{const.TOR_DATA_DIR_PREFIX}{uuid.uuid4()}")
-        os.makedirs(self.temp_dir, exist_ok=True)
-
-    def _remove_data_dir(self) -> None:
-        """
-        Removes the Tor temp directory.
-        """
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
-            self.log_func(f"Removed tor data dir: {self.temp_dir}")
 
     def start(self) -> None:
         """
@@ -94,4 +73,3 @@ class TorRunner:
         if not self.tor_process:
             return None
         self.tor_process.kill()
-        self._remove_data_dir()
