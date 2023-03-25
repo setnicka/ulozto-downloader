@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import shutil
 from typing import Callable
 
 import stem.process
@@ -47,12 +46,20 @@ class TorRunner:
 
     def _create_temp_directory(self) -> None:
         """
-        Creates Tor data directory if not exists.
+        Creates Tor temp data directory if not exists.
         """
-        dir_path = os.path.join(self.temp_dir, f"{const.TOR_DATA_DIR_PREFIX}{uuid.uuid4()}")
-        os.makedirs(dir_path, exist_ok=True)
+        self.temp_dir = os.path.join(self.temp_dir, f"{const.TOR_DATA_DIR_PREFIX}{uuid.uuid4()}")
+        os.makedirs(self.temp_dir, exist_ok=True)
 
-    def start(self) -> TorRunner:
+    def _remove_data_dir(self) -> None:
+        """
+        Removes the Tor temp directory.
+        """
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
+            self.log_func(f"Removed tor data dir: {self.temp_dir}")
+
+    def start(self) -> None:
         """
         Starts the Tor process with the given configuration.
         """
@@ -62,17 +69,16 @@ class TorRunner:
         except Exception as e:
             self.log_func(f"Unable to start TOR: {e}")
             raise
-        return self
 
-    def launch(self) -> TorRunner:
+    def launch(self) -> None:
         """
         Launches the Tor process if it has not been started.
         """
         if not self.tor_process:
             self.start()
-        return self
 
-    def reload(self) -> TorRunner:
+    @staticmethod
+    def reload() -> None:
         """
         Reloads the Tor process with a new circuit.
         """
@@ -80,13 +86,12 @@ class TorRunner:
         with stem.control.Controller.from_port(port=CONTROL_PORT) as controller:
             controller.authenticate()
             controller.signal(stem.Signal.NEWNYM)
-        return self
 
-    def stop(self) -> TorRunner:
+    def stop(self) -> None:
         """
-        Stops the Tor process.
+        Stops the Tor process and removes temp directory if exists.
         """
         if not self.tor_process:
-            return self
+            return None
         self.tor_process.kill()
-        return self
+        self._remove_data_dir()
