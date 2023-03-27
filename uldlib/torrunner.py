@@ -68,8 +68,7 @@ class TorRunner:
 
     def stop(self) -> None:
         """
-        Stops the Tor process and removes temp directory if exists.
+        Stops the Tor process if running.
         """
-        if not self.tor_process:
-            return None
-        self.tor_process.kill()
+        if self.tor_process:
+            self.tor_process.kill()
