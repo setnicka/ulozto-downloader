@@ -4,9 +4,12 @@ import stem.process
 import stem.control
 from uldlib.utils import get_available_port
 
+sockPort = get_available_port(9050)
+controlPort = get_available_port(9051, skip=[sockPort])
+
 TOR_CONFIG = {
-    'SocksPort': f"{get_available_port(9050)}",
-    "ControlPort": f"{get_available_port(9051)}",
+    'SocksPort': f"{sockPort}",
+    "ControlPort": f"{controlPort}",
     'SocksListenAddress': '127.0.0.1',
     'SocksPolicy': 'accept 127.0.0.1',
     'CookieAuthentication': '1',

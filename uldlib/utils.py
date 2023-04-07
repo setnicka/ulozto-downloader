@@ -1,5 +1,6 @@
 import socket
 from enum import Enum
+from typing import List
 
 from colors import colors
 
@@ -33,10 +34,10 @@ def _is_port_available(port: int) -> bool:
         return s.connect_ex(('127.0.0.1', port)) != 0
 
 
-def get_available_port(given_port: int) -> int:
+def get_available_port(given_port: int, skip: List[int] = []) -> int:
     max_attempts = 65535
     while given_port < max_attempts:
-        if _is_port_available(given_port):
+        if _is_port_available(given_port) and given_port not in skip:
             return given_port
         given_port += 1
     else:
