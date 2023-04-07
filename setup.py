@@ -28,7 +28,10 @@ setup(
         'stem',
     ],
     extras_require={
-        "auto-captcha": ["tflite-runtime"],
+        "auto-captcha": [
+            "tflite-runtime;python_version < '3.10'",
+            "tensorflow;python_version >= '3.10'",
+        ]
     },
     python_requires='>=3.7',
     packages=setuptools.find_packages(),
