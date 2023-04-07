@@ -7,12 +7,13 @@ import os
 import sys
 import time
 import threading
+import json
 from typing import Dict, List, Optional, Tuple
 
 from uldlib import utils
 from uldlib.const import CLI_STATUS_STARTLINE
 from uldlib.part import DownloadPart
-from uldlib.utils import LogLevel
+from uldlib.utils import LogLevel, Status
 
 
 class DownloadInfo:
@@ -265,3 +266,146 @@ class ConsoleFrontend(Frontend):
             str(timedelta(seconds=round(elapsed))),
             round(speed / 1024**2, 2)
         ))
+
+class JSONFrontend(Frontend):
+    show_parts: bool
+    logfile: Optional[TextIOWrapper] = None
+
+    last_log: Tuple[str, LogLevel]
+
+    last_captcha_log: Tuple[str, LogLevel]
+    last_captcha_stats: Dict[str, int]
+
+    def __init__(self, show_parts: bool = False, logfile: str = ""):
+        super().__init__(supports_prompt=True)
+        self.last_log = ("", LogLevel.INFO)
+        self.last_captcha_log = ("", LogLevel.INFO)
+        self.last_captcha_stats = None
+        self.show_parts = show_parts
+        if logfile:
+            self.logfile = open(logfile, 'a')
+        print(json.dumps({"status": Status.INITIALIZING}))
+
+    def __del__(self):
+        if self.logfile:
+            self.logfile.close()
+
+    @staticmethod
+    def _log_print(msg: str, progress: bool):
+        if progress:
+            sys.stdout.write(msg + "\033[K\r")
+        else:
+            print(msg)
+
+    def _log_logfile(self, prefix: str, msg: str, progress: bool, level: LogLevel):
+        if progress or self.logfile is None:
+            return
+
+        t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.logfile.write(f"{t} {prefix}\t[{level.name}] {msg}\n")
+        self.logfile.flush()
+
+    def tor_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
+        print(json.dumps({"tor": msg}))
+        pass
+
+    def captcha_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
+        print(json.dumps({"captcha": msg}))
+        pass
+
+    def main_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
+        if LogLevel == LogLevel.ERROR:
+            print(json.dumps({"status": Status.ERROR, "message": msg}))
+        else:
+            #print(json.dumps({"status": msg}))
+            pass
+
+    def captcha_stats(self, stats: Dict[str, int]):
+        self.last_captcha_stats = stats
+
+    def prompt(self, msg: str, level: LogLevel = LogLevel.INFO) -> str:
+        #print(utils.color(msg, level), end="")
+        return input().strip()
+
+    def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
+        try:
+            self._loop(info, parts, stop_event)
+        except Exception:
+            print_exc()
+            terminate_func()
+
+    def _loop(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event):
+        jsonReport = JSONReport(info)
+
+        t_start = time.time()
+        s_start = 0
+        for part in parts:
+            (_, _, size) = part.get_frontend_status()
+            s_start += size
+        last_bps = [(s_start, t_start)]
+
+        while True:
+            t = time.time()
+            # Get parts info
+            s = 0
+            for part in parts:
+                (line, level, size) = part.get_frontend_status()
+                s += size
+
+            # Print overall progress line
+            if t == t_start:
+                total_bps = 0
+                now_bps = 0
+            else:
+                total_bps = (s - s_start) / (t - t_start)
+                # Average now bps for last 10 measurements
+                if len(last_bps) >= 10:
+                    last_bps = last_bps[1:]
+                (s_last, t_last) = last_bps[0]
+                now_bps = (s - s_last) / (t - t_last)
+                last_bps.append((s, t))
+
+            jsonReport.update(s, total_bps, now_bps)
+            print(jsonReport)
+
+            if stop_event.is_set():
+                break
+
+            time.sleep(0.5)
+
+        elapsed = time.time() - t_start
+        # speed in bytes per second:
+        speed = (s - s_start) / elapsed if elapsed > 0 else 0
+
+        print(json.dumps({"status": Status.COMPLETED, "duration": str(timedelta(seconds=round(elapsed))), "avg_speed": f"{round(speed / 1024**2, 2)} MB/s"}))
+
+class JSONReport:
+    status: str
+    file: str
+    url: str
+    size: str
+    downloaded: str
+    percent: str
+    avg_speed: str
+    curr_speed: str
+    remaining: str
+    size_float: float
+
+    def __init__(self, info: DownloadInfo) -> None:
+        self.status = Status.DOWNLOADING
+        self.file = info.filename,
+        self.url = info.url,
+        self.size = f"{round(info.total_size / 1024**2, 2)} MB"
+        self.size_float = info.total_size
+
+    def update(self, down_size, total_bps, now_bps):
+        self.downloaded = f"{(down_size / 1024 ** 2):.2f} MB",
+        self.percent = f"{(down_size / self.size_float * 100):.2f} %",
+        self.avg_speed = f"{(total_bps / 1024 ** 2):.2f} MB/s",
+        self.curr_speed = f"{(now_bps / 1024 ** 2):.2f} MB/s",
+        
+        remaining = (self.size_float - down_size) / total_bps if total_bps > 0 else 0
+        self.remaining = f"{timedelta(seconds=round(remaining))}"
+
+    def __str__(self) -> str:
+        return json.dumps(self.__dict__).replace('["', '"').replace('"]', '"')

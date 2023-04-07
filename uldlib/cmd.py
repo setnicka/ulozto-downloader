@@ -5,11 +5,13 @@ import os
 import sys
 from os import path
 from uldlib import downloader, captcha, __version__, __path__, const
+from uldlib.frontend import ConsoleFrontend, JSONFrontend
 from uldlib import utils
-from uldlib.frontend import ConsoleFrontend
 from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
 
+# TODO Automatic find all types implementing Frontend and put into this dict
+avaiable_frontends = { "console": ConsoleFrontend, "JSON": JSONFrontend }
 
 def run():
     parser = argparse.ArgumentParser(
@@ -48,6 +50,9 @@ def run():
     g_log.add_argument(
         '--log', metavar='LOGFILE', type=str, default="",
         help="Enable logging to given file")
+    g_log.add_argument(
+        '--frontend', type=str, default="console", choices=avaiable_frontends.keys(),
+        help="Select frontend: 'console' - text user interface for humans, 'JSON' - output for scripts")
 
     g_captcha = parser.add_argument_group("CAPTCHA solving related options")
     g_captcha.add_argument(
@@ -66,8 +71,8 @@ def run():
 
     args = parser.parse_args()
 
-    # TODO: implement other frontends and allow to choose from them
-    frontend = ConsoleFrontend(show_parts=args.parts_progress, logfile=args.log)
+    # Use user chosen frontend
+    frontend = avaiable_frontends[args.frontend](show_parts=args.parts_progress, logfile=args.log)
 
     tfull_available = importlib.util.find_spec('tensorflow') and importlib.util.find_spec('tensorflow.lite')
     tflite_available = importlib.util.find_spec('tflite_runtime')
@@ -119,7 +124,7 @@ def run():
             return  # Already terminating
         d.terminate()
         tor.stop()
-        print('Program terminated.')
+        frontend.main_log('Program terminated.')
         sys.exit(1)
 
     signal.signal(signal.SIGINT, sigint_handler)
