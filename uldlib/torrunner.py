@@ -1,116 +1,74 @@
-import socket
 from typing import Callable
 
 import stem.process
-from stem.control import Controller
-import os
-import uuid
-import shutil
-import re
+import stem.control
+from uldlib.utils import get_available_port
 
-from uldlib import const
-from uldlib.utils import DownloaderError
+TOR_CONFIG = {
+    'SocksPort': f"{get_available_port(9050)}",
+    "ControlPort": f"{get_available_port(9051)}",
+    'SocksListenAddress': '127.0.0.1',
+    'SocksPolicy': 'accept 127.0.0.1',
+    'CookieAuthentication': '1',
+    'Log': [
+        'NOTICE stdout',
+        'ERR file ./error.log'
+    ],
+}
 
 
 class TorRunner:
-    """Running stem tor instance"""
-    ddir: str
-    log_func: Callable
+    """
+    A class that manages running and stopping a Tor process.
+    """
 
-    def __init__(self, ddir: str, log_func: Callable):
-        self.proxies = None
-        self.torRunning = False
+    def __init__(self, temp_dir: str, log_func: Callable) -> None:
+        """
+        Initializes a TorRunner instance with a given data directory and log function.
+
+        Args:
+            temp_dir (str): the directory where the temporary data will be stored.
+            log_func (Callable): a function that will be called to log messages.
+        """
+        self.tor_process = None
         self.log_func = log_func
-        uid = str(uuid.uuid4())
-        self.ddir = os.path.join(ddir, f"{const.TOR_DATA_DIR_PREFIX}{uid}")
+        self.temp_dir = temp_dir
+        self.proxies = {
+            'http': f'socks5://127.0.0.1:{TOR_CONFIG.get("SocksPort")}',
+            'https': f'socks5://127.0.0.1:{TOR_CONFIG.get("SocksPort")}'
+        }
 
-    def _port_not_use(self, port):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(('127.0.0.1', port)) != 0
-
-    def _two_free_ports(self, at):
-        max_port = 65535
-        ports = []
-        while at < max_port:
-            if len(ports) == 2:
-                break
-
-            if self._port_not_use(at):
-                ports.append(at)
-            at += 1
-        return (ports[0], ports[1])
-
-    def launch(self):
-        if self.torRunning:
-            return
-
-        self.log_func("Starting TOR...")
-        # tor started after cli initialized
+    def start(self) -> None:
+        """
+        Starts the Tor process with the given configuration.
+        """
         try:
+            self.tor_process = stem.process.launch_tor_with_config(config=TOR_CONFIG)
+            self.log_func("TOR started")
+        except Exception as e:
+            self.log_func(f"Unable to start TOR: {e}")
+            raise
+
+    def launch(self) -> None:
+        """
+        Launches the Tor process if it has not been started.
+        """
+        if not self.tor_process:
             self.start()
-            self.torRunning = True
-            self.proxies = {
-                'http': 'socks5://127.0.0.1:' + str(self.tor_ports[0]),
-                'https': 'socks5://127.0.0.1:' + str(self.tor_ports[0])
-            }
 
-        except OSError as e:
-            # remove tor data
-            if os.path.exists(self.ddir):
-                shutil.rmtree(self.ddir, ignore_errors=True)
-            raise DownloaderError(f"Tor start failed: {e}, exiting. Try run program again.")
+    @staticmethod
+    def reload() -> None:
+        """
+        Reloads the Tor process with a new circuit.
+        """
+        CONTROL_PORT = int(TOR_CONFIG.get("ControlPort"))
+        with stem.control.Controller.from_port(port=CONTROL_PORT) as controller:
+            controller.authenticate()
+            controller.signal(stem.Signal.NEWNYM)
 
-    def start(self):
-        os.mkdir(self.ddir)
-        self.tor_ports = self._two_free_ports(41000)
-        config = "SocksPort " + str(self.tor_ports[0]) + "\n"
-        config += "ControlPort " + str(self.tor_ports[1]) + "\n"
-        config += "DataDirectory " + self.ddir + "\n"
-        config += "CookieAuthentication 1\n"
-        tcpath = os.path.join(self.ddir, "torrc")
-        c = open(tcpath, "w")
-        c.write(config)
-        c.close()
-
-        def get_tor_ready(line):
-            p = re.compile(r'Bootstrapped \d+%')
-            msg = re.findall(p, line)
-
-            if len(msg) > 0:
-                self.log_func(msg[0], progress=True)
-            if "Bootstrapped 100%" in line:
-                self.log_func("TOR is ready, download links started")
-
-        self.process = stem.process.launch_tor(
-            torrc_path=os.path.join(self.ddir, "torrc"),
-            init_msg_handler=get_tor_ready, close_output=True)
-
-    def reload(self):
-        self.ctrl = Controller.from_port(port=self.tor_ports[1])
-        self.ctrl.authenticate()
-        self.ctrl.signal("RELOAD")
-
-    def stop(self):
-        if not self.torRunning:
-            return
-
-        if hasattr(self, "process"):
-            self.log_func("Terminating tor")
-            self.process.terminate()
-            if self.process.wait(10) is None:
-                self.log_func("Killing zombie tor process.")
-                self.process.kill()
-
-        self.torRunning = False
-
-        try:
-            self.process.wait(5)
-        except:
-            pass
-
-        if os.path.exists(self.ddir):
-            shutil.rmtree(self.ddir, ignore_errors=True)
-            self.log_func(f"Removed tor data dir: {self.ddir}")
-
-    def __del__(self):
-        self.stop()
+    def stop(self) -> None:
+        """
+        Stops the Tor process if running.
+        """
+        if self.tor_process:
+            self.tor_process.kill()
