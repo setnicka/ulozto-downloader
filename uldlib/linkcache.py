@@ -1,71 +1,78 @@
-from os import path, remove
-from math import ceil
 import os
 from time import time
-import re
+from urllib.parse import parse_qs
+
 from .const import CACHEPOSTFIX
 
 
 class LinkCache:
     """
-    Arguments:
-        filename (str): path to save downloaded file
-        invsec (int): number of seconds before link timeout
-            (tm=<ddddddddddd> timestamp), that make link invalid
+    A class for caching download links.
+
+    Attributes:
+        filename (str): The name of the file where the links will be stored.
+        shorten_validity (int, optional): number of seconds of witch shorten the validity of given link.
+
+    Methods:
+        delete_cache_file: Deletes the cache file if it exists.
+        add: Adds a new link to the cache.
+        get_all_valid_links: Returns all valid links from the cache.
+        _is_link_valid: Determines whether a link is valid based on its timestamp query parameter.
+        _get_cache_content: Returns the content of the cache file.
     """
 
-    def __init__(self, filename, invsec=5):
+    def __init__(self, filename: str, shorten_validity: int = 5):
+        """
+        Initializes a new instance of the LinkCache class.
+
+        Args:
+            filename (str): The name of the file where the links will be stored.
+            shorten_validity (int, optional): number of seconds of witch shorten the validity of given link.
+        """
         self.filename = filename
-        self.cachefile = self.filename + CACHEPOSTFIX
-        self.invsec = invsec
+        self.cache_file = self.filename + CACHEPOSTFIX
+        self.shorten_validity = shorten_validity
 
-    def clean(self):
-        if path.exists(self.cachefile):
-            os.remove(self.cachefile)
+    def delete_cache_file(self) -> None:
+        """
+        Deletes the cache file if it exists.
+        """
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
 
-    def add(self, link):
-        """add new link to cache and add usage index (set to 1)"""
-        # if path.exists(self.cachefile):
-        with open(self.cachefile, 'a') as cache:
+    def add(self, link: str) -> None:
+        """
+        Adds a new link to the cache.
+        """
+        with open(self.cache_file, 'a') as cache:
             cache.write(f"{link}\n")
 
-    def _get_all(self):
-        if path.exists(self.cachefile):
-            with open(self.cachefile, 'r') as cache:
-                return cache.readlines()
-        else:
+    def get_all_valid_links(self) -> list[str]:
+        """
+        Returns all valid links from the cache.
+        """
+        cache_content = self._get_cache_content()
+        return [link for link in cache_content if self._is_link_valid(link)]
+
+    def _is_link_valid(self, link: str) -> bool:
+        """
+        Determines whether a link is valid based on its timestamp query parameter.
+        """
+        query_string = parse_qs(link, separator=';')
+        if not query_string.get("tm"):
+            # link does not contain 'tm' query parameter
+            # therefore is not valid
+            return False
+        link_timestamp = int(query_string.get("tm")[0])
+        time_now = int(time())
+        # flag link as invalid {shorten_validity} second before it actually expires
+        return time_now < (link_timestamp - self.shorten_validity)
+
+    def _get_cache_content(self) -> list[str]:
+        """
+        Returns the content of the cache file.
+        """
+        if not os.path.exists(self.cache_file):
             return []
-
-    def get(self):
-        """Get all links from cache and invalidate before return"""
-        if path.exists(self.cachefile):
-            self.invalidion()
-            full_cache = self._get_all()
-            return full_cache
-        else:
-            return []
-
-    def validate(self, link):
-        valid = False
-        tsr = re.compile(';tm=([^;]+);')
-        ts = tsr.findall(link)
-        if len(ts) > 0:
-            tnow_sec = ceil(time())
-            tst = int(ts[0])
-            if (tnow_sec < (tst - self.invsec)):
-                valid = True
-        return valid
-
-    def invalidion(self):
-        full_cache = self._get_all()
-        if len(full_cache) > 0:
-            invcache = []
-            for link in full_cache:
-                valid = self.validate(link)
-                if valid:
-                    invcache.append(link)
-            if len(invcache) < len(full_cache):
-                remove(self.cachefile)
-                for link in invcache:
-                    # already contains '\n' prevent duplicity
-                    self.add(link.strip('\n'))
+        with open(self.cache_file, 'r') as cache:
+            return cache.readlines()

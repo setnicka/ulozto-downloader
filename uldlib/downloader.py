@@ -85,7 +85,7 @@ class Downloader:
         if os.path.exists(self.stat_filename):
             os.remove(self.stat_filename)
         if self.page.linkCache is not None:
-            self.page.linkCache.clean()
+            self.page.linkCache.delete_cache_file()
 
     def _captcha_breaker(self, page, parts):
         msg = ""
