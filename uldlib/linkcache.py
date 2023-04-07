@@ -1,5 +1,6 @@
 import os
 from time import time
+from typing import List
 from urllib.parse import parse_qs
 
 from .const import CACHEPOSTFIX
@@ -47,7 +48,7 @@ class LinkCache:
         with open(self.cache_file, 'a') as cache:
             cache.write(f"{link}\n")
 
-    def get_all_valid_links(self) -> list[str]:
+    def get_all_valid_links(self) -> List[str]:
         """
         Returns all valid links from the cache.
         """
@@ -68,7 +69,7 @@ class LinkCache:
         # flag link as invalid {shorten_validity} second before it actually expires
         return time_now < (link_timestamp - self.shorten_validity)
 
-    def _get_cache_content(self) -> list[str]:
+    def _get_cache_content(self) -> List[str]:
         """
         Returns the content of the cache file.
         """
