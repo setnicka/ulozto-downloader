@@ -16,27 +16,58 @@ avaiable_frontends = { "console": ConsoleFrontend, "JSON": JSONFrontend }
 def run():
     parser = argparse.ArgumentParser(
         description='Download file from Uloz.to using multiple parallel downloads.',
+        usage=sys.argv[0]+" [options] URL...",
+        add_help=False,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument('url', metavar='URL', type=str,
-                        help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign)")
-    parser.add_argument('--parts', metavar='N', type=int, default=20,
-                        help='Number of parts that will be downloaded in parallel')
-    parser.add_argument('--parts-progress', default=False, action='store_true',
-                        help='Show progress of parts while being downloaded')
-    parser.add_argument('--output', metavar='DIRECTORY',
-                        type=str, default="./", help='Target directory')
-    parser.add_argument('--auto-captcha', default=False, action="store_true",
-                        help='Try to solve CAPTCHAs automatically using TensorFlow')
-    parser.add_argument('--manual-captcha', default=False, action="store_true",
-                        help='Solve CAPTCHAs by manual input')
-    parser.add_argument('--conn-timeout', metavar='SEC', default=const.DEFAULT_CONN_TIMEOUT, type=int,
-                        help='Set connection timeout for TOR sessions in seconds')
-    parser.add_argument('--log', metavar='LOGFILE', type=str, default="",
-                        help="Enable logging to given file")
-    parser.add_argument('--version', action='version', version=__version__)
-    parser.add_argument('--frontend', type=str, default="console", choices=avaiable_frontends.keys(),
-                        help="Select frontend: 'console' - text user interface for humans, 'JSON' - output for scripts")
+
+    parser.add_argument(
+        'urls', metavar='URL', nargs="+", type=str,
+        help="URL from Uloz.to (tip: enter in 'quotes' because the URL contains ! sign). Multiple URLs could be specified, they will be downloaded sequentially.")
+
+    g_main = parser.add_argument_group("Main options")
+    g_main.add_argument(
+        '--parts', metavar='N', type=int, default=20,
+        help='Number of parts that will be downloaded in parallel')
+    g_main.add_argument(
+        '--password', metavar='P', type=str, default="",
+        help='Optional password if the file is password-protected')
+
+    g_main.add_argument(
+        '--output', metavar='DIRECTORY', type=str, default="./",
+        help='Directory or full path including file name where output file will be saved')
+    g_main.add_argument(
+        '--temp', metavar='DIRECTORY', type=str, default="./",
+        help='Directory where temporary files (.ucache, .udown, Tor data directory) will be created')
+    g_main.add_argument(
+        '-y', '--yes', default=False, action="store_true",
+        help='Overwrite files without asking')
+
+    g_log = parser.add_argument_group("Display and logging options")
+    g_log.add_argument(
+        '--parts-progress', default=False, action='store_true',
+        help='Show progress of parts while being downloaded')
+    g_log.add_argument(
+        '--log', metavar='LOGFILE', type=str, default="",
+        help="Enable logging to given file")
+    g_log.add_argument(
+        '--frontend', type=str, default="console", choices=avaiable_frontends.keys(),
+        help="Select frontend: 'console' - text user interface for humans, 'JSON' - output for scripts")
+
+    g_captcha = parser.add_argument_group("CAPTCHA solving related options")
+    g_captcha.add_argument(
+        '--auto-captcha', default=False, action="store_true",
+        help='Try to solve CAPTCHAs automatically using TensorFlow')
+    g_captcha.add_argument(
+        '--manual-captcha', default=False, action="store_true",
+        help='Solve CAPTCHAs by manual input')
+    g_captcha.add_argument(
+        '--conn-timeout', metavar='SEC', default=const.DEFAULT_CONN_TIMEOUT, type=int,
+        help='Set connection timeout for TOR sessions in seconds')
+
+    g_other = parser.add_argument_group("Other options")
+    g_other.add_argument('--version', action='version', version=__version__)
+    g_other.add_argument('-h', '--help', action='help', help='Show this help message and exit')
 
     args = parser.parse_args()
 
@@ -84,7 +115,7 @@ def run():
     if os.name == 'nt':
         os.system("")
 
-    tor = TorRunner(args.output, frontend.tor_log)
+    tor = TorRunner(args.temp, frontend.tor_log)
     d = downloader.Downloader(tor, frontend, solver)
 
     # Register sigint handler
@@ -92,21 +123,21 @@ def run():
         if d.terminating:
             return  # Already terminating
         d.terminate()
+        tor.stop()
         frontend.main_log('Program terminated.')
         sys.exit(1)
 
     signal.signal(signal.SIGINT, sigint_handler)
 
     try:
-        d.download(args.url, args.parts, args.output, args.conn_timeout)
-        # remove resume .udown file
-        udown_file = d.output_filename + const.DOWNPOSTFIX
-        if os.path.exists(udown_file):
-            frontend.main_log(f"Delete file: {udown_file}")
-            os.remove(udown_file)
+        for url in args.urls:
+            d.download(url, args.parts, args.password, args.output, args.temp, args.yes, args.conn_timeout)
+            # do clean only on successful download (no exception)
+            d.clean()
     except utils.DownloaderStopped:
         pass
     except utils.DownloaderError as e:
         frontend.main_log(str(e), level=LogLevel.ERROR)
     finally:
         d.terminate()
+        tor.stop()

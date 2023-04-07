@@ -32,13 +32,22 @@ class Downloader:
     download_url_queue: Queue
     parts: int
     tor: TorRunner
+    page: Page
+
+    password: str
 
     def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+        """Initialize the Downloader.
+
+           The TorRunner could be launched or not, the .launch() method will be called when needed.
+           Also it is caller responsibility to call .stop() method on the TorRunner.
+        """
+
         self.success = None
-        self.target_dir = None
         self.url = None
         self.filename = None
         self.output_filename = None
+        self.stat_filename = None
         self.total_size = None
         self.frontend = frontend
         self.log = frontend.main_log
@@ -48,17 +57,13 @@ class Downloader:
         self.conn_timeout = None
         self.tor = tor
 
-        self.stop_download = threading.Event()
-        self.stop_captcha = threading.Event()
-        self.stop_frontend = threading.Event()
-
     def terminate(self, quiet: bool = False):
         if self.terminating:
             return
         self.terminating = True
 
         if not quiet:
-            self.log('Terminating download. Please wait for stopping all threads.')
+            self.log('Terminating download. Please wait for stopping all threads.', level=LogLevel.WARNING)
 
         self.stop_download.set()
         self.stop_captcha.set()
@@ -67,14 +72,20 @@ class Downloader:
         for p in self.threads:
             if p.is_alive():
                 p.join()
-        self.tor.stop()
 
         if not quiet:
-            self.log('Download terminated.')
+            self.log('Download terminated.', level=LogLevel.WARNING)
 
         self.stop_frontend.set()
         if self.frontend_thread and self.frontend_thread.is_alive():
             self.frontend_thread.join()
+
+    def clean(self):
+        # remove resume .udown file
+        if os.path.exists(self.stat_filename):
+            os.remove(self.stat_filename)
+        if self.page.linkCache is not None:
+            self.page.linkCache.clean()
 
     def _captcha_breaker(self, page, parts):
         msg = ""
@@ -124,11 +135,14 @@ class Downloader:
                 "Connection": "close",
             })
 
-            if r.status_code != 429:
+            if r.status_code == 429:
+                part.set_status("Status code 429 Too Many Requests returned… will try again in few seconds", warning=True)
+                time.sleep(5)
+            elif r.status_code == 425:
+                part.set_status("Status code 425 Too Early returned… will try again in few seconds", warning=True)
+                time.sleep(5)
+            else:
                 break
-
-            part.set_status("Status code 429 Too Many Requests returned… will try again in few seconds", warning=True)
-            time.sleep(5)
 
         if r.status_code != 206 and r.status_code != 200:
             part.set_status(f"Status code {r.status_code} returned: {writer.pfrom + writer.written}/{writer.pto}", error=True)
@@ -164,16 +178,18 @@ class Downloader:
         # reuse download link if need
         self.download_url_queue.put(part.download_url)
 
-    def download(self, url, parts=10, target_dir="", conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def download(self, url: str, parts: int = 10, password: str = "", target_dir: str = "", temp_dir: str = "", do_overwrite: bool = False, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Download file from Uloz.to using multiple parallel downloads.
             Arguments:
-                url (str): URL of the Uloz.to file to download
-                parts (int): Number of parts that will be downloaded in parallel (default: 10)
-                target_dir (str): Directory where the download should be saved (default: current directory)
+                url: URL of the Uloz.to file to download
+                parts: Number of parts that will be downloaded in parallel (default: 10)
+                target_dir: Directory where the download should be saved (default: current directory)
+                do_overwrite: Overwrite files without asking
+                temp_dir: Directory where temporary files will be created (default: current directory)
+                password: Optional password to access the Uloz.to file
         """
         self.url = url
         self.parts = parts
-        self.target_dir = target_dir
         self.conn_timeout = conn_timeout
 
         self.threads = []
@@ -181,24 +197,48 @@ class Downloader:
         self.isLimited = False
         self.isCaptcha = False
 
+        self.stop_download = threading.Event()
+        self.stop_captcha = threading.Event()
+        self.stop_frontend = threading.Event()
+
         # 1. Prepare downloads
         self.log("Starting downloading for url '{}'".format(url))
         # 1.1 Get all needed information
         self.log("Getting info (filename, filesize, …)")
 
         try:
-            page = Page(url, target_dir, parts, self.tor, self.conn_timeout)
+            self.page = Page(
+                url=url,
+                temp_dir=temp_dir,
+                parts=parts,
+                password=password,
+                frontend=self.frontend,
+                tor=self.tor,
+                conn_timeout=self.conn_timeout,
+            )
+            page = self.page  # shortcut
             page.parse()
 
         except Exception as e:
             raise DownloaderError('Cannot download file: ' + str(e))
 
+        # Check of the target is a file or directory and construct the output path accordingly
+        if not os.path.isdir(target_dir) and target_dir[-1] != '/':
+            # Path to a file has been provided
+            self.output_filename = target_dir
+        else:
+            # Create the output directory if does not exist
+            os.makedirs(target_dir, exist_ok = True)
+            self.output_filename = os.path.join(target_dir, page.filename)
+        self.filename = os.path.basename(self.output_filename)
+        self.stat_filename = os.path.join(temp_dir, self.filename + DOWNPOSTFIX)
+
+        self.log("Downloading into: '{}'".format(self.output_filename))
+
         # Do check - only if .udown status file not exists get question
-        self.output_filename = os.path.join(target_dir, page.filename)
-        self.filename = page.filename
         # .udown file is always present in cli_mode = False
-        if os.path.isfile(self.output_filename) and not os.path.isfile(self.output_filename + DOWNPOSTFIX):
-            if self.frontend.supports_prompt:
+        if os.path.isfile(self.output_filename) and not os.path.isfile(self.stat_filename):
+            if self.frontend.supports_prompt and not do_overwrite:
                 answer = self.frontend.prompt(
                     "WARNING: File '{}' already exists, overwrite it? [y/n] ".format(self.output_filename), level=LogLevel.WARNING)
                 if answer != 'y':
@@ -208,7 +248,7 @@ class Downloader:
                          .format(self.output_filename), level=LogLevel.WARNING)
 
         info = DownloadInfo()
-        info.filename = page.filename
+        info.filename = self.filename
         info.url = page.url
 
         if page.quickDownloadURL is not None:
@@ -239,7 +279,7 @@ class Downloader:
         self.total_size = int(head.headers['Content-Length'])
 
         try:
-            file_data = SegFileLoader(self.output_filename, self.total_size, parts)
+            file_data = SegFileLoader(self.output_filename, self.stat_filename, self.total_size, parts)
             writers = file_data.make_writers()
         except Exception as e:
             raise DownloaderError(f"Failed: Can not create '{self.output_filename}' error: {e} ")
