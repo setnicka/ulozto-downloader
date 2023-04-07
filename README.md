@@ -100,13 +100,14 @@ Dá se použít buď odlehčený Python balíček `tflite-runtime`, nebo plnotu�
 Python balíčku `tensorflow` (vydávání `tflite-runtime` se často opožďuje, proto
 je často potřeba s novým Pythonem sáhnout po plnotučné verzi).
 
-Oba balíky se dají instalovat přes Python instalátor `pip3`. Odlehčený
-`tflite-runtime` se dá instalovat i společně s celým Ulož.to downloaderem, když
-použijete při instalaci `ulozto-downloader[auto-captcha]`, nebo ručně
-následujícím příkazem:
+Oba balíky se dají instalovat přes Python instalátor `pip3`. Správný balík pro
+danou verzi Pythonu by se měl dát instalovat společně s celým Ulož.to
+downloaderem, když použijete při instalaci `ulozto-downloader[auto-captcha]`
+(viz níže), případně ručně takto:
 
 ```shell
 pip3 install tflite-runtime
+pip3 install tensorflow
 ```
 
 **Verzi pro Windows** (nebo pokud vám instalace hází chybu) stáhněte z repozitáře
