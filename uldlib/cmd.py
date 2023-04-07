@@ -11,7 +11,8 @@ from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
 
 # TODO Automatic find all types implementing Frontend and put into this dict
-avaiable_frontends = { "console": ConsoleFrontend, "JSON": JSONFrontend }
+available_frontends = {"console": ConsoleFrontend, "JSON": JSONFrontend}
+
 
 def run():
     parser = argparse.ArgumentParser(
@@ -51,7 +52,7 @@ def run():
         '--log', metavar='LOGFILE', type=str, default="",
         help="Enable logging to given file")
     g_log.add_argument(
-        '--frontend', type=str, default="console", choices=avaiable_frontends.keys(),
+        '--frontend', type=str, default="console", choices=available_frontends.keys(),
         help="Select frontend: 'console' - text user interface for humans, 'JSON' - output for scripts")
 
     g_captcha = parser.add_argument_group("CAPTCHA solving related options")
@@ -72,7 +73,7 @@ def run():
     args = parser.parse_args()
 
     # Use user chosen frontend
-    frontend = avaiable_frontends[args.frontend](show_parts=args.parts_progress, logfile=args.log)
+    frontend = available_frontends[args.frontend](show_parts=args.parts_progress, logfile=args.log)
 
     tfull_available = importlib.util.find_spec('tensorflow') and importlib.util.find_spec('tensorflow.lite')
     tflite_available = importlib.util.find_spec('tflite_runtime')

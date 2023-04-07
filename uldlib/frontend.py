@@ -267,6 +267,7 @@ class ConsoleFrontend(Frontend):
             round(speed / 1024**2, 2)
         ))
 
+
 class JSONFrontend(Frontend):
     show_parts: bool
     logfile: Optional[TextIOWrapper] = None
@@ -316,15 +317,12 @@ class JSONFrontend(Frontend):
     def main_log(self, msg: str, level: LogLevel = LogLevel.INFO, progress: bool = False):
         if LogLevel == LogLevel.ERROR:
             print(json.dumps({"status": Status.ERROR, "message": msg}))
-        else:
-            #print(json.dumps({"status": msg}))
-            pass
 
     def captcha_stats(self, stats: Dict[str, int]):
         self.last_captcha_stats = stats
 
     def prompt(self, msg: str, level: LogLevel = LogLevel.INFO) -> str:
-        #print(utils.color(msg, level), end="")
+        # print(utils.color(msg, level), end="")
         return input().strip()
 
     def run(self, info: DownloadInfo, parts: List[DownloadPart], stop_event: threading.Event, terminate_func):
@@ -379,6 +377,7 @@ class JSONFrontend(Frontend):
 
         print(json.dumps({"status": Status.COMPLETED, "duration": str(timedelta(seconds=round(elapsed))), "avg_speed": f"{round(speed / 1024**2, 2)} MB/s"}))
 
+
 class JSONReport:
     status: str
     file: str
@@ -403,7 +402,7 @@ class JSONReport:
         self.percent = f"{(down_size / self.size_float * 100):.2f} %",
         self.avg_speed = f"{(total_bps / 1024 ** 2):.2f} MB/s",
         self.curr_speed = f"{(now_bps / 1024 ** 2):.2f} MB/s",
-        
+
         remaining = (self.size_float - down_size) / total_bps if total_bps > 0 else 0
         self.remaining = f"{timedelta(seconds=round(remaining))}"
 
