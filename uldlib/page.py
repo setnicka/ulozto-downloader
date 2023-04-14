@@ -47,7 +47,7 @@ class Page:
 
     linkCache: Optional[LinkCache] = None
 
-    def __init__(self, url: str, temp_dir: str, parts: int, password: str, frontend: Frontend, tor: TorRunner, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def __init__(self, url: str, temp_dir: str, parts: int, password: str, frontend: Frontend, tor: TorRunner, enforce_tor: bool, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
@@ -67,9 +67,11 @@ class Page:
         self.password = password
         self.frontend = frontend
         self.tor = tor
+        self.enforce_tor = enforce_tor
         self.conn_timeout = conn_timeout
-
-        self.tor.launch()  # ensure that TOR is running
+        
+        if (self.enforce_tor):
+            self.tor.launch()  # ensure that TOR is running
 
         parsed_url = urlparse(self.url)
         if parsed_url.scheme == "":
@@ -87,7 +89,10 @@ class Page:
                       "lim": 0, "block": 0, "net": 0}  # statistics
 
         s = requests.Session()
-        s.proxies = self.tor.proxies
+        if (self.enforce_tor):
+            # In case TOR enforcing mode is on, use TOR also for the initial request
+            s.proxies = self.tor.proxies
+
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
         if parsed_url.hostname == "pornfile.cz":
             s.post("https://pornfile.cz/porn-disclaimer/", data={
@@ -247,7 +252,10 @@ class Page:
 
             try:
                 s = requests.Session()
-                s.proxies = self.tor.proxies
+                if (self.enforce_tor):
+                    # In case TOR enforcing mode is on, use TOR also for the initial request
+                    s.proxies = self.tor.proxies
+
                 if urlparse(self.url).hostname == "pornfile.cz":
                     r = s.post("https://pornfile.cz/porn-disclaimer/", data={
                         "agree": "Souhlasím",
@@ -267,10 +275,10 @@ class Page:
                 if self.isDirectDownload:
                     solver.log(f"TOR get downlink (timeout {self.conn_timeout})")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, timeout=self.conn_timeout)
+                                 headers=XML_HEADERS, timeout=self.conn_timeout, proxies=self.tor.proxies if not self.enforce_tor else {})
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
-                    r = s.get(self.captchaURL, headers=XML_HEADERS)
+                    r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies if not self.enforce_tor else {})
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(

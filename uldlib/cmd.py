@@ -62,7 +62,12 @@ def run():
     g_captcha.add_argument(
         '--manual-captcha', default=False, action="store_true",
         help='Solve CAPTCHAs by manual input')
-    g_captcha.add_argument(
+    
+    g_tor = parser.add_argument_group("TOR related options")
+    g_tor.add_argument(
+        '-t', '--enforce-tor', default=False, action="store_true",
+        help='Perform all the connections via TOR. If not set, the initial connection to Ulozto is performed directly before TOR is launched')
+    g_tor.add_argument(
         '--conn-timeout', metavar='SEC', default=const.DEFAULT_CONN_TIMEOUT, type=int,
         help='Set connection timeout for TOR sessions in seconds')
 
@@ -132,7 +137,7 @@ def run():
 
     try:
         for url in args.urls:
-            d.download(url, args.parts, args.password, args.output, args.temp, args.yes, args.conn_timeout)
+            d.download(url, args.parts, args.password, args.output, args.temp, args.yes, args.conn_timeout, args.enforce_tor)
             # do clean only on successful download (no exception)
             d.clean()
     except utils.DownloaderStopped:

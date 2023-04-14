@@ -178,7 +178,7 @@ class Downloader:
         # reuse download link if need
         self.download_url_queue.put(part.download_url)
 
-    def download(self, url: str, parts: int = 10, password: str = "", target_dir: str = "", temp_dir: str = "", do_overwrite: bool = False, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def download(self, url: str, parts: int = 10, password: str = "", target_dir: str = "", temp_dir: str = "", do_overwrite: bool = False, conn_timeout=DEFAULT_CONN_TIMEOUT, enforce_tor = False):
         """Download file from Uloz.to using multiple parallel downloads.
             Arguments:
                 url: URL of the Uloz.to file to download
@@ -191,6 +191,7 @@ class Downloader:
         self.url = url
         self.parts = parts
         self.conn_timeout = conn_timeout
+        self.enforce_tor = enforce_tor
 
         self.threads = []
         self.terminating = False
@@ -214,7 +215,8 @@ class Downloader:
                 password=password,
                 frontend=self.frontend,
                 tor=self.tor,
-                conn_timeout=self.conn_timeout,
+                enforce_tor=self.enforce_tor,
+                conn_timeout=self.conn_timeout
             )
             page = self.page  # shortcut
             page.parse()
