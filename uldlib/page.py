@@ -4,6 +4,7 @@ from typing import Optional, Type
 from urllib.parse import urlparse, urljoin
 from os import path
 import requests
+import cloudscraper
 
 from uldlib.captcha import CaptchaSolver
 from uldlib.frontend import LogLevel, Frontend
@@ -69,6 +70,7 @@ class Page:
         self.tor = tor
         self.enforce_tor = enforce_tor
         self.conn_timeout = conn_timeout
+        self.scraper = cloudscraper.create_scraper()
         
         if (self.enforce_tor):
             self.tor.launch()  # ensure that TOR is running
@@ -92,6 +94,7 @@ class Page:
         if (self.enforce_tor):
             # In case TOR enforcing mode is on, use TOR also for the initial request
             s.proxies = self.tor.proxies
+            self.scraper.proxies = self.tor.proxies
 
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
         if parsed_url.hostname == "pornfile.cz":
@@ -116,6 +119,8 @@ class Page:
         elif r.status_code == 401:
             self.needPassword = True
             r = self.enter_password(s)
+        elif r.status_code == 403:
+            r = self.scraper.get(self.url)
         elif r.status_code == 404:
             raise RuntimeError(
                 f"{self.pagename} returned status code {r.status_code}, file does not exist")
@@ -279,10 +284,14 @@ class Page:
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
                     r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies if not self.enforce_tor else {})
+                    
+                    if r.status_code == 403:
+                        r = self.scraper.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies if not self.enforce_tor else {})
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(
                         r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
+                    
                     if captcha_image_url is None:
                         solver.log("ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.", level=LogLevel.ERROR)
                         self.stats["all"] += 1
@@ -306,6 +315,10 @@ class Page:
                     solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout})")
 
                     resp = s.post(self.captchaURL, data=captcha_data,
+                                  headers=XML_HEADERS, timeout=self.conn_timeout)
+
+                    if resp.status_code == 403:
+                        resp = self.scraper.post(self.captchaURL, data=captcha_data,
                                   headers=XML_HEADERS, timeout=self.conn_timeout)
 
                 # generate result or break
