@@ -6,3 +6,4 @@ pysocks
 stem
 tflite-runtime[auto-captcha];python_version < '3.10'
 tensorflow[auto-captcha];python_version >= '3.10'
+cloudscraper
