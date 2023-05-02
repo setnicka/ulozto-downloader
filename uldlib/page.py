@@ -1,5 +1,6 @@
 import re
 import threading
+import time
 from typing import Optional, Type
 from urllib.parse import urlparse, urljoin
 from os import path
@@ -70,8 +71,14 @@ class Page:
         self.tor = tor
         self.enforce_tor = enforce_tor
         self.conn_timeout = conn_timeout
-        self.scraper = cloudscraper.create_scraper()
-        
+        self.scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'android',
+                'desktop': False
+            }
+        )
+
         if (self.enforce_tor):
             self.tor.launch()  # ensure that TOR is running
 
@@ -120,7 +127,12 @@ class Page:
             self.needPassword = True
             r = self.enter_password(s)
         elif r.status_code == 403:
-            r = self.scraper.get(self.url)
+            while True:
+                try:
+                    r = self.scraper.get(self.url)
+                    break
+                except cloudscraper.exceptions.CloudflareChallengeError:
+                    self.frontend.main_log("Cloudflare scraper error, trying again...")
         elif r.status_code == 404:
             raise RuntimeError(
                 f"{self.pagename} returned status code {r.status_code}, file does not exist")
@@ -284,14 +296,14 @@ class Page:
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
                     r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies if not self.enforce_tor else {})
-                    
+
                     if r.status_code == 403:
                         r = self.scraper.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies if not self.enforce_tor else {})
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(
                         r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
-                    
+
                     if captcha_image_url is None:
                         solver.log("ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.", level=LogLevel.ERROR)
                         self.stats["all"] += 1
@@ -345,6 +357,10 @@ class Page:
             except requests.exceptions.ReadTimeout:
                 self._error_net_stat(
                     "ReadTimeout error, try new TOR session.", solver.log)
+            except cloudscraper.exceptions.CloudflareChallengeError as e:
+                self._error_net_stat(
+                    f"Cloudflare scrapper error: {e}. Try new TOR session.", solver.log)
+                time.sleep(1)
 
             solver.stats(self.stats)
 
