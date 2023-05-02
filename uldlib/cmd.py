@@ -62,7 +62,7 @@ def run():
     g_captcha.add_argument(
         '--manual-captcha', default=False, action="store_true",
         help='Solve CAPTCHAs by manual input')
-    
+
     g_tor = parser.add_argument_group("TOR related options")
     g_tor.add_argument(
         '-t', '--enforce-tor', default=False, action="store_true",
@@ -120,6 +120,9 @@ def run():
     # enables ansi escape characters in terminal on Windows
     if os.name == 'nt':
         os.system("")
+
+    from colorama import just_fix_windows_console
+    just_fix_windows_console()
 
     tor = TorRunner(args.temp, frontend.tor_log)
     d = downloader.Downloader(tor, frontend, solver)

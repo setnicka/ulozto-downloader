@@ -23,6 +23,7 @@ setup(
         'requests',
         'Pillow',
         'ansicolors',
+        'colorama',
         'numpy',
         'pysocks',
         'stem',
