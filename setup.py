@@ -26,6 +26,7 @@ setup(
         'numpy',
         'pysocks',
         'stem',
+        'cloudscraper'
     ],
     extras_require={
         "auto-captcha": [
