@@ -178,8 +178,15 @@ class Page:
 
         # Check if slowDirectDownload or form data for CAPTCHA was parsed
         if not download_found:
-            #print(self.body)
-            raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
+            if "page is blocked due to the decision" in self.body:
+                if self.enforce_tor:
+                    raise RuntimeError(f"The page is blocked due to the decision of the authorities in your area,"
+                               + " which is most likely caused by the exit IP of the Tor circuit. Try to run the downloader again.")
+                else:
+                    raise RuntimeError(f"The page is blocked due to the decision of the authorities in your area."
+                               + " Try to restart the downloader with the -t option.")
+            else:
+                raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
                                + " no direct download URL and no CAPTCHA challenge URL found")
 
     # print TOR network error and += stats

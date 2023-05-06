@@ -210,23 +210,23 @@ class Downloader:
         # 1.1 Get all needed information
         self.log("Getting info (filename, filesize, …)")
 
-        #try:
-        self.page = Page(
-                url=url,
-                temp_dir=temp_dir,
-                parts=parts,
-                password=password,
-                frontend=self.frontend,
-                tor=self.tor,
-                cfsolver=self.cfsolver,
-                enforce_tor=self.enforce_tor,
-                conn_timeout=self.conn_timeout
-            )
-        page = self.page  # shortcut
-        page.parse()
+        try:
+            self.page = Page(
+                    url=url,
+                    temp_dir=temp_dir,
+                    parts=parts,
+                    password=password,
+                    frontend=self.frontend,
+                    tor=self.tor,
+                    cfsolver=self.cfsolver,
+                    enforce_tor=self.enforce_tor,
+                    conn_timeout=self.conn_timeout
+                )
+            page = self.page  # shortcut
+            page.parse()
 
-        #except Exception as e:
-        #    raise DownloaderError('Cannot download file: ' + str(e))
+        except Exception as e:
+            raise DownloaderError('Cannot download file: ' + str(e))
 
         # Check of the target is a file or directory and construct the output path accordingly
         if not os.path.isdir(target_dir) and target_dir[-1] != '/':

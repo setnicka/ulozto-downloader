@@ -47,13 +47,13 @@ class CFSolver:
             })
         
         result = json.loads(r.text)
-        print(result)
+        #print(result)
         if (result.get('solution')):
-            print(result.get('solution'))
+            return result.get('solution').get('session')
 
     def get(self, target) -> None:
         options = self.options.copy()
-        #options['session'] = self.get_session()
+        options['session'] = self.get_session()
         options['url'] = target
         options['cmd'] = "request.get"
 
