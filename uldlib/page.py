@@ -1,9 +1,11 @@
 import re
 import threading
+import time
 from typing import Optional, Type
 from urllib.parse import urlparse, urljoin
 from os import path
 import requests
+import cloudscraper
 
 from uldlib.captcha import CaptchaSolver
 from uldlib.frontend import LogLevel, Frontend
@@ -311,7 +313,6 @@ class Page:
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(
                         r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
-                    
                     if captcha_image_url is None:
                         solver.log("ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.", level=LogLevel.ERROR)
                         self.stats["all"] += 1
@@ -342,6 +343,10 @@ class Page:
                         solver.log(f"Active Cloudflare WAF previously detected, using automated bypass mode by default...")
                         resp = self.cfsolver.XHRpost(self.captchaURL, data=captcha_data, timeout=self.conn_timeout)
 
+                    if resp.status_code == 403:
+                        resp = self.scraper.post(self.captchaURL, data=captcha_data,
+                                  headers=XML_HEADERS, timeout=self.conn_timeout)
+
                 # generate result or break
                 result = self._link_validation_stat(resp, solver.log)
                 solver.stats(self.stats)
@@ -366,6 +371,10 @@ class Page:
             except requests.exceptions.ReadTimeout:
                 self._error_net_stat(
                     "ReadTimeout error, try new TOR session.", solver.log)
+            except cloudscraper.exceptions.CloudflareChallengeError as e:
+                self._error_net_stat(
+                    f"Cloudflare scrapper error: {e}. Try new TOR session.", solver.log)
+                time.sleep(1)
 
             solver.stats(self.stats)
 
