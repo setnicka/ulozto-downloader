@@ -121,7 +121,7 @@ class Page:
             self.frontend.main_log(f"Cloudflare WAF detected, initializing automated Cloudflare Solver (timeout {self.cfsolver.get_timeout()}s).", level=LogLevel.INFO)
             r = self.cfsolver.get(self.url)
             self.cloudflareWAFActive = True
-            #print(r.text)
+            
             if r.status_code == 403:
                 raise RuntimeError(
                     f"{self.pagename} returned status code {r.status_code} again. Bypassing Cloudflare Challenge failed.")
@@ -269,6 +269,9 @@ class Page:
             reload = False
             if self.stats["all"] > 0 or reload:
                 self.tor.reload()
+                # CloudFlare solver session needs to be reset in order to pick up the new Tor circuit 
+                if self.cloudflareWAFActive:
+                    self.cfsolver.destroy_session()
 
             try:
                 s = requests.Session()
@@ -295,12 +298,12 @@ class Page:
                 if self.isDirectDownload:
                     solver.log(f"TOR get downlink (timeout {self.conn_timeout})")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, timeout=self.conn_timeout, proxies=self.tor.proxies if not self.enforce_tor else {})
+                                 headers=XML_HEADERS, timeout=self.conn_timeout, proxies=self.tor.proxies)
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
 
                     if not self.cloudflareWAFActive:
-                        r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies if not self.enforce_tor else {})
+                        r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies)
                     else:
                         solver.log(f"Solving Cloudflare WAF challenge (timeout {self.cfsolver.get_timeout()}s)...")
                         r = self.cfsolver.get(self.captchaURL)
@@ -315,6 +318,7 @@ class Page:
                         self.stats["net"] += 1
                         solver.stats(self.stats)
                         reload = True
+
                         continue
 
                     captcha_data = {}
@@ -335,9 +339,8 @@ class Page:
                         resp = s.post(self.captchaURL, data=captcha_data,
                                   headers=XML_HEADERS, timeout=self.conn_timeout)
                     else:
-                        solver.log(f"Cloudflare WAF detected, using automated bypass mode.")
-                        resp = self.cfsolver.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, timeout=self.conn_timeout)
+                        solver.log(f"Active Cloudflare WAF previously detected, using automated bypass mode by default...")
+                        resp = self.cfsolver.XHRpost(self.captchaURL, data=captcha_data, timeout=self.conn_timeout)
 
                 # generate result or break
                 result = self._link_validation_stat(resp, solver.log)

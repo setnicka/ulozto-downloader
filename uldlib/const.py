@@ -10,6 +10,7 @@ DOWN_CHUNK_SIZE = 20480
 OUTFILE_WRITE_BUF = 20480
 DEFAULT_CONN_TIMEOUT = 30
 DEFAULT_CF_TIMEOUT = 90
+DEFAULT_CF_ENDPOINT = "http://127.0.0.1:8191/v1"
 MODEL_DOWNLOAD_URL = "https://github.com/JanPalasek/ulozto-captcha-breaker/releases/download/v2.2/model.tflite"
 TOR_DATA_DIR_PREFIX = "tor_data_dir_"
 MODEL_FILENAME = "model.tflite"

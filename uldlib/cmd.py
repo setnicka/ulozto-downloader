@@ -72,10 +72,13 @@ def run():
         '--conn-timeout', metavar='SEC', default=const.DEFAULT_CONN_TIMEOUT, type=int,
         help='Set connection timeout for TOR sessions in seconds')
     
-    g_cf = parser.add_argument_group("Cloudflare Solver related options")
+    g_cf = parser.add_argument_group("Cloudflare WAF solver related options")
+    g_cf.add_argument(
+        '--cf-endpoint', metavar='URL', default=const.DEFAULT_CF_ENDPOINT, type=str,
+        help='Set a custom endpoint URL of the Flaresolverr service.')
     g_cf.add_argument(
         '--cf-timeout', metavar='SEC', default=const.DEFAULT_CF_TIMEOUT, type=int,
-        help='Set timeout for Cloudflare Solver in seconds')
+        help='Set a custom timeout for Cloudflare WAF solver in seconds')
 
     g_other = parser.add_argument_group("Other options")
     g_other.add_argument('--version', action='version', version=__version__)
@@ -128,7 +131,12 @@ def run():
         os.system("")
 
     tor = TorRunner(args.temp, frontend.tor_log)
-    cfsolver = CFSolver(timeout=args.cf_timeout)
+    try:
+        cfsolver = CFSolver(timeout=args.cf_timeout, endpoint=args.cf_endpoint)
+    except RuntimeError as e:
+        frontend.main_log(str(e), level=LogLevel.ERROR)
+        sys.exit(1)
+
     d = downloader.Downloader(tor, cfsolver, frontend, solver)
 
     # Register sigint handler
