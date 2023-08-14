@@ -27,7 +27,7 @@ class CFSolver:
         }
 
         # Test if the Flaresolverr service is reachable
-        if not self.list_sessions():
+        if self.list_sessions() == False:
             raise RuntimeError(
                 "Failed to connect to the Flaresolverr service. "
                 "Make sure it's reachable or specify an alternative endpoint using the --cf-endpoint argument."
