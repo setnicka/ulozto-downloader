@@ -3,6 +3,8 @@ import json
 
 from urllib.parse import urlencode, quote_plus
 
+from uldlib import const
+
 class DummyResponse:
     text = ""
     status_code = 0
@@ -13,7 +15,7 @@ class CFSolver:
     headers = requests.utils.default_headers()
     cookies = None
     user_agent = None
-    flaresolverr_endpoint = 'http://127.0.0.1:8191/v1'
+    flaresolverr_endpoint = const.DEFAULT_CF_ENDPOINT
 
     def __init__(self, endpoint: str = None, timeout: int = 120) -> None:
         if endpoint:

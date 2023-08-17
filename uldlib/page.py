@@ -343,10 +343,6 @@ class Page:
                         solver.log(f"Active Cloudflare WAF previously detected, using automated bypass mode by default...")
                         resp = self.cfsolver.XHRpost(self.captchaURL, data=captcha_data, timeout=self.conn_timeout)
 
-                    if resp.status_code == 403:
-                        resp = self.scraper.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, timeout=self.conn_timeout)
-
                 # generate result or break
                 result = self._link_validation_stat(resp, solver.log)
                 solver.stats(self.stats)
