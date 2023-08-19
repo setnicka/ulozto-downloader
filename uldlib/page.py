@@ -232,6 +232,7 @@ class Page:
             reload = False  # bad captcha same IP again
         elif cfl_str in linkdata:
             self.stats["block"] += 1
+            self.cloudflareWAFActive = True
             log_func(cfl_msg, level=LogLevel.ERROR)
 
         return (ok, reload)
@@ -266,6 +267,9 @@ class Page:
                 break
 
             self.tor.launch()  # ensure that TOR is running
+
+            if self.cloudflareWAFActive:
+                self.cfsolver.set_proxy(self.tor.proxies)
 
             # reload tor after 1. use or all except badCaptcha case
             reload = False

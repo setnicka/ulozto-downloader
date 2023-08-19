@@ -52,7 +52,6 @@ class CFSolver:
             self.raw_proxy = proxies
             proxy_url = proxies.get('https')
 
-            print (f"Setting Tor proxy to {proxy_url}.")
             self.options['proxy'] = {
                 "url": proxy_url
             }
@@ -93,8 +92,8 @@ class CFSolver:
     def create_session(self):
         options = {}
         options['cmd'] = "sessions.create"
-        if self.options['proxy']:
-            options['proxy'] = self.options['proxy']
+        if self.options.get('proxy'):
+            options['proxy'] = self.options.get('proxy')
 
         r = self.s.post(
             self.flaresolverr_endpoint,
