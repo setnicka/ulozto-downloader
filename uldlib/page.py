@@ -310,6 +310,10 @@ class Page:
 
                     if not self.cloudflareWAFActive:
                         r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies)
+                        if r.status_code == 403:
+                            self.frontend.main_log(f"Cloudflare WAF detected, trying with automated Cloudflare Solver...", level=LogLevel.INFO)
+                            self.cloudflareWAFActive = True
+                            continue
                     else:
                         solver.log(f"Solving Cloudflare WAF challenge (timeout {self.cfsolver.get_timeout()}s)...")
                         r = self.cfsolver.get(self.captchaURL)
