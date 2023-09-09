@@ -43,6 +43,9 @@ def run():
     g_main.add_argument(
         '-y', '--yes', default=False, action="store_true",
         help='Overwrite files without asking')
+    g_main.add_argument(
+        '-n', '--never', default=False, action="store_true",
+        help='Never overwrite files')
 
     g_log = parser.add_argument_group("Display and logging options")
     g_log.add_argument(
@@ -140,7 +143,7 @@ def run():
 
     try:
         for url in args.urls:
-            d.download(url, args.parts, args.password, args.output, args.temp, args.yes, args.conn_timeout, args.enforce_tor)
+            d.download(url, args.parts, args.password, args.output, args.temp, args.yes, args.never, args.conn_timeout, args.enforce_tor)
             # do clean only on successful download (no exception)
             d.clean()
     except utils.DownloaderStopped:
