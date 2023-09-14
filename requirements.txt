@@ -1,7 +1,7 @@
 requests
 Pillow
 ansicolors
-colorama
+colorama>=0.4.6
 numpy
 pysocks
 stem

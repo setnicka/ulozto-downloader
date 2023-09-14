@@ -22,7 +22,6 @@ def parse_single(text, regex):
         return None
     return result[0]
 
-
 def strip_tracking_info(url: str):
     return url.split("#!")[0] if "#!" in url else url
     
@@ -106,8 +105,8 @@ class Page:
         # If file is file-tracking link we need to get normal file link from it
         if url.startswith('{uri.scheme}://{uri.netloc}/file-tracking/'.format(uri=parsed_url)):
             s.get(url, allow_redirects=False)
-            if 'Location' in r.headers:
-                self.url = strip_tracking_info(r.headers['Location'])
+            if 'Location' in s.headers:
+                self.url = strip_tracking_info(s.headers['Location'])
                 parsed_url = urlparse(self.url)
 
         r = s.get(self.url)

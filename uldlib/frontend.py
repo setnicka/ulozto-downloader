@@ -78,7 +78,7 @@ class ConsoleFrontend(Frontend):
         self.last_captcha_stats = None
         self.show_parts = show_parts
         if logfile:
-            self.logfile = open(logfile, 'a')
+            self.logfile = open(logfile, 'a', encoding="utf-8")
 
     def __del__(self):
         if self.logfile:

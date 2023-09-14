@@ -23,10 +23,11 @@ setup(
         'requests',
         'Pillow',
         'ansicolors',
-        'colorama',
+        'colorama>=0.4.6',
         'numpy',
         'pysocks',
         'stem',
+        'cloudscraper',
     ],
     extras_require={
         "auto-captcha": [
