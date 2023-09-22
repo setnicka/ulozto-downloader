@@ -42,6 +42,7 @@ class Page:
     password: str
 
     cloudflareWAFActive: bool = False
+    enforceCFsolver: bool = False
 
     needPassword: bool = False
 
@@ -57,6 +58,9 @@ class Page:
                 password (str): password to access the Uloz.to file
                 frontend (Frontend): frontend object for password prompt (if supported)
                 tor (TorRunner): tor runner instance
+                cfsolver (CFSolver): Flaresoverr instance
+                enforce_tor (bool): Whether Tor shall be used for all connections or only for download URL retrieval
+                conn_timeout (int): Download timeout
             Raises:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
@@ -119,13 +123,15 @@ class Page:
             self.needPassword = True
             r = self.enter_password(s)
         elif r.status_code == 403:
-            self.frontend.main_log(f"Cloudflare WAF detected, initializing automated Cloudflare Solver (timeout {self.cfsolver.get_timeout()}s).", level=LogLevel.INFO)
+            self.frontend.main_log(f"Cloudflare WAF detected, initializing automated Cloudflare Solver (timeout {self.cfsolver.get_timeout()} sec).", level=LogLevel.INFO)
             r = self.cfsolver.get(self.url)
             self.cloudflareWAFActive = True
+            self.request_cookies = r.cookies
+            self.request_user_agent = r.user_agent
             
             if r.status_code == 403:
                 raise RuntimeError(
-                    f"{self.pagename} returned status code {r.status_code} again. Bypassing Cloudflare Challenge failed.")
+                    f"{self.pagename} returned status code {r.status_code} again. Bypassing Cloudflare challenge failed.")
         elif r.status_code == 404:
             raise RuntimeError(
                 f"{self.pagename} returned status code {r.status_code}, file does not exist")
@@ -181,11 +187,14 @@ class Page:
         if not download_found:
             if "page is blocked due to the decision" in self.body:
                 if self.enforce_tor:
-                    raise RuntimeError(f"The page is blocked due to the decision of the authorities in your area,"
-                               + " which is most likely caused by the exit IP of the Tor circuit. Try to run the downloader again.")
+                    raise RuntimeError(f"The page is blocked \"due to the decision of the authorities in your area\"."
+                               + " This is most likely due to the exit IP of the current Tor circuit. Please run the"
+                               + " downloader again to establish a new Tor circuit.")
+                    # TODO: Retry automatically instead telling the user to do so.
                 else:
-                    raise RuntimeError(f"The page is blocked due to the decision of the authorities in your area."
-                               + " Try to restart the downloader with the -t option.")
+                    raise RuntimeError(f"The page is blocked \"due to the decision of the authorities in your area\"."
+                               + " You can try to restart the downloader with the -t option, to enforce the Tor network for"
+                               + " all communication with the remote server.")
             else:
                 raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
                                + " no direct download URL and no CAPTCHA challenge URL found")
@@ -297,24 +306,30 @@ class Page:
                         "password_send": "Odeslat",
                         "_do": "passwordProtectedForm-submit",
                     })
+                
+                headers = XML_HEADERS
+
+                # Use the User Agent from flaresolverr is present
+                if self.request_user_agent:
+                    headers["User-Agent"] = self.request_user_agent
 
                 resp = requests.Response()
 
                 if self.isDirectDownload:
-                    solver.log(f"TOR get downlink (timeout {self.conn_timeout})")
+                    solver.log(f"TOR get downlink (timeout {self.conn_timeout} sec)")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, timeout=self.conn_timeout, proxies=self.tor.proxies)
+                                 headers=XML_HEADERS, timeout=self.conn_timeout, proxies=self.tor.proxies, cookies=self.request_cookies)
                 else:
-                    solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
+                    solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout} sec)")
 
-                    if not self.cloudflareWAFActive:
-                        r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies)
+                    if not self.enforceCFsolver:
+                        r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies, cookies=self.request_cookies)
                         if r.status_code == 403:
-                            self.frontend.main_log(f"Cloudflare WAF detected, trying with automated Cloudflare Solver...", level=LogLevel.INFO)
-                            self.cloudflareWAFActive = True
+                            self.frontend.main_log(f"Cloudflare WAF still detected, enforcing automated Cloudflare Solver...", level=LogLevel.INFO)
+                            self.enforceCFsolver = True
                             continue
                     else:
-                        solver.log(f"Solving Cloudflare WAF challenge (timeout {self.cfsolver.get_timeout()}s)...")
+                        solver.log(f"Solving Cloudflare WAF challenge (timeout {self.cfsolver.get_timeout()} sec)...")
                         r = self.cfsolver.get(self.captchaURL)
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
@@ -341,11 +356,11 @@ class Page:
 
                     captcha_data["captcha_value"] = captcha_answer
 
-                    solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout})")
+                    solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout} sec)")
 
-                    if not self.cloudflareWAFActive:
+                    if not self.enforceCFsolver:
                         resp = s.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, timeout=self.conn_timeout)
+                                  headers=XML_HEADERS, timeout=self.conn_timeout, cookies=self.request_cookies)
                     else:
                         solver.log(f"Active Cloudflare WAF previously detected, using automated bypass mode by default...")
                         resp = self.cfsolver.XHRpost(self.captchaURL, data=captcha_data, timeout=self.conn_timeout)
@@ -362,7 +377,7 @@ class Page:
                     self.numTorLinks += 1
                     yield dlink
                 elif self.isDirectDownload:
-                    solver.log("Direct download does no seem to work, trying with captcha resolution instead...")
+                    solver.log("Direct download does not seem to work, trying with captcha resolution instead...")
                     self.isDirectDownload = False
 
             except requests.exceptions.ConnectionError:

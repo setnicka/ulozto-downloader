@@ -8,6 +8,8 @@ from uldlib import const
 class DummyResponse:
     text = ""
     status_code = 0
+    cookies = {}
+    user_agent = ""
 
 class CFSolver:
     session = None
@@ -136,6 +138,10 @@ class CFSolver:
         options['url'] = target
         options['cmd'] = cmd
 
+        # Re-use the CF cookie if present to avoid solving multiple challenges
+        if self.cookies and self.cookies.get("cf_clearance"):
+            options['cookies'] = [{"name": "cf_clearance", "value": self.cookies.get("cf_clearance")}]
+
         if cmd == 'request.post':
             options['postData'] = req_data
 
@@ -158,6 +164,8 @@ class CFSolver:
             data = DummyResponse()
             data.text = result.get('solution').get('response')
             data.status_code = result.get('solution').get('status')
+            data.cookies = self.get_cookies()
+            data.user_agent = self.get_user_agent()
 
             return data
         elif (result.get('status') == "error"):
@@ -184,4 +192,22 @@ class CFSolver:
         r = requests.post(target, headers=headers, cookies=self.cookies, data=data, timeout=timeout, proxies=self.raw_proxy)
 
         return r
-        
+    
+    def get_cookies(self, all:bool=False):
+        """Returns the cookies obtained from the Flaresolverr browser.
+        By default only the cookies necessary to bypass the CloudFlare challenge are returned.
+        :param bool all: Return all the browser cookies, defaults to False
+        """
+    
+        if all:
+            return self.cookies
+        elif self.cookies and self.cookies.get("cf_clearance"):
+            return {"cf_clearance": self.cookies.get("cf_clearance")}
+        else:
+            return {}
+    
+    def get_user_agent(self):
+        """Returns the User Agent used by the Flaresolverr browser to obtain the CloudFlare clearance.
+        """
+
+        return self.user_agent
