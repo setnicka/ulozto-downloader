@@ -74,6 +74,8 @@ class Page:
         self.cfsolver = cfsolver
         self.enforce_tor = enforce_tor
         self.conn_timeout = conn_timeout
+        self.request_cookies = {}
+        self.request_user_agent = ""
 
         if self.enforce_tor:
             self.tor.launch()  # ensure that TOR is running
@@ -276,7 +278,7 @@ class Page:
 
             self.tor.launch()  # ensure that TOR is running
 
-            if self.cloudflareWAFActive:
+            if self.cloudflareWAFActive or self.enforceCFsolver:
                 self.cfsolver.set_proxy(self.tor.proxies)
 
             # reload tor after 1. use or all except badCaptcha case
@@ -284,7 +286,7 @@ class Page:
             if self.stats["all"] > 0 or reload:
                 self.tor.reload()
                 # CloudFlare solver session needs to be reset in order to pick up the new Tor circuit 
-                if self.cloudflareWAFActive:
+                if self.cloudflareWAFActive or self.enforceCFsolver:
                     self.cfsolver.destroy_session()
 
             try:
@@ -318,12 +320,12 @@ class Page:
                 if self.isDirectDownload:
                     solver.log(f"TOR get downlink (timeout {self.conn_timeout} sec)")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, timeout=self.conn_timeout, proxies=self.tor.proxies, cookies=self.request_cookies)
+                                 headers=headers, timeout=self.conn_timeout, proxies=self.tor.proxies, cookies=self.request_cookies)
                 else:
                     solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout} sec)")
 
                     if not self.enforceCFsolver:
-                        r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies, cookies=self.request_cookies)
+                        r = s.get(self.captchaURL, headers=headers, proxies=self.tor.proxies, cookies=self.request_cookies)
                         if r.status_code == 403:
                             self.frontend.main_log(f"Cloudflare WAF still detected, enforcing automated Cloudflare Solver...", level=LogLevel.INFO)
                             self.enforceCFsolver = True
@@ -331,6 +333,9 @@ class Page:
                     else:
                         solver.log(f"Solving Cloudflare WAF challenge (timeout {self.cfsolver.get_timeout()} sec)...")
                         r = self.cfsolver.get(self.captchaURL)
+                        self.request_cookies = r.cookies
+                        self.request_user_agent = r.user_agent
+                        headers["User-Agent"] = self.request_user_agent
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(
@@ -360,10 +365,14 @@ class Page:
 
                     if not self.enforceCFsolver:
                         resp = s.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, timeout=self.conn_timeout, cookies=self.request_cookies)
+                                  headers=headers, timeout=self.conn_timeout, proxies=self.tor.proxies, cookies=self.request_cookies)
                     else:
                         solver.log(f"Active Cloudflare WAF previously detected, using automated bypass mode by default...")
                         resp = self.cfsolver.XHRpost(self.captchaURL, data=captcha_data, timeout=self.conn_timeout)
+
+                # Try the next link again without CF solver
+                if self.enforceCFsolver:
+                    self.enforceCFsolver = False
 
                 # generate result or break
                 result = self._link_validation_stat(resp, solver.log)
@@ -389,10 +398,6 @@ class Page:
             except requests.exceptions.ReadTimeout:
                 self._error_net_stat(
                     "ReadTimeout error, try new TOR session.", solver.log)
-            except cloudscraper.exceptions.CloudflareChallengeError as e:
-                self._error_net_stat(
-                    f"Cloudflare scrapper error: {e}. Try new TOR session.", solver.log)
-                time.sleep(1)
 
             solver.stats(self.stats)
 
