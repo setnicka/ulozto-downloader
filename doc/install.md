@@ -10,7 +10,8 @@ termux-setup-storage
 pkg upgrade
 ```
 ### Instalujte Flaresolverr
-1.) ```
+1.) 
+```
 pkg install proot-distro
 ```
 2.)
