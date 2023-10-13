@@ -43,8 +43,9 @@ chmod +rwx flaresolverr.sh
 8.)
 ```
 su flaresolverr
+echo 127.0.0.1 localhost > /etc/hosts
 python -u /app/flaresolverr.py
-``
+```
 
 4.) Nainstalujte Python:
 ```shell
