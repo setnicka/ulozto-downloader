@@ -78,8 +78,7 @@ pip install ulozto-downloader
 8.) Nainstalujte grafické rozhraní, ve kterém budete opisovat captcha kódy, podle návodu [zde](https://wiki.termux.com/wiki/Graphical_Environment).
 
 ### Použití
-Před každým spuštěním ulozto-downloaderu
-budete muset zopakovat kroky 7 a 8 (kromě příkazu chmod).
+Před každým spuštěním ulozto-downloaderu budete muset zopakovat kroky 7 a 8 (kromě příkazu chmod). A následně spustit stahování v nové "Session".
 
 ## MacOS
 
