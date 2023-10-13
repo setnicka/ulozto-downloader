@@ -67,15 +67,11 @@ pkg install tor
 ```shell
 pkg install python-tkinter
 ```
-9.) Nainstalujte Git:
-```shell
-pkg install git
-```
-10.) Nainstalujte opravenou verzi Ulozto-downloaderu:
+9.) Nainstalujte Ulozto-downloader:
 ```shell
 pip install ulozto-downloader
 ```
-11.) Nainstalujte grafické rozhraní, ve kterém budete opisovat captcha kódy, podle návodu [zde](https://wiki.termux.com/wiki/Graphical_Environment).
+10.) Nainstalujte grafické rozhraní, ve kterém budete opisovat captcha kódy, podle návodu [zde](https://wiki.termux.com/wiki/Graphical_Environment).
 
 ## MacOS
 
