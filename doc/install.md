@@ -9,19 +9,19 @@ termux-setup-storage
 ```shell
 pkg upgrade
 ```
-# Instalujte Flaresolverr
+### Instalujte Flaresolverr
 1.) ```
 pkg install proot-distro
 ```
-2.) `
+2.) ```
 proot-distro install ubuntu
-`
-3.) `
+```
+3.) ```
 proot-distro login ubuntu
-`
-4.) `
+```
+4.) ```
 apt install skopeo umoci
-`
+```
 5.) ```
 cd /data/data/com.termux/files/home
 skopeo copy docker://ghcr.io/flaresolverr/flaresolverr:v3.3.6 oci:flaresolverr:v3.3.6
