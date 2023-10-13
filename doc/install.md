@@ -32,7 +32,19 @@ cd /data/data/com.termux/files/home
 skopeo copy docker://ghcr.io/flaresolverr/flaresolverr:v3.3.6 oci:flaresolverr:v3.3.6
 umoci unpack --image flaresolverr:v3.3.6 rootfs
 ```
-(Toto bude nèjakou dobu trvat)
+(Toto bude nějakou dobu trvat)
+6.) Přesuňte soubor https://github.com/Vojtak42/ulozto-downloader/blob/master/Termux/Flaresolverr.sh do složky rootfs v uložišti termuxu
+7.) 
+```
+cd rootfs
+chmod +rwx flaresolverr.sh
+./flaresolverr.sh
+```
+8.)
+```
+su flaresolverr
+python -u /app/flaresolverr.py
+``
 
 4.) Nainstalujte Python:
 ```shell
@@ -40,7 +52,7 @@ pkg install python3
 ```
 5.) Nainstalujte Numpy:
 ```shell
-MATHLIB="m" pip install numpy
+pkg install python-numpy
 ```
 6.) Nainstalujte libjpeg-turbo:
 ```shell
