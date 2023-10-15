@@ -34,7 +34,7 @@ umoci unpack --image flaresolverr:v3.3.6 rootfs
 ```
 (Toto bude nějakou dobu trvat)
 
-6.) Přesuňte soubor [Flaresolverr.sh](https://github.com/Vojtak42/ulozto-downloader/blob/master/Termux/Flaresolverr.sh) do složky rootfs v uložišti termuxu (třeba pomocí správce souborů jako Total commander)
+6.) Přesuňte soubor [Flaresolverr.sh](/Termux/Flaresolverr.sh) do složky rootfs v uložišti termuxu (třeba pomocí správce souborů jako Total commander)
 
 7.) 
 ```
