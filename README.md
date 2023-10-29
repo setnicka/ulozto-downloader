@@ -20,8 +20,8 @@ kódů pomocí TensorFlow modelu z projektu
 [ulozto-captcha-breaker](https://github.com/JanPalasek/ulozto-captcha-breaker)
 (credits to Jan Palasek).
 
-Stahovač je schopen automaticky obejít ochranu CloudFlare ochranu přd botmi
-pomocí projektu [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr).
+Stahovač je schopen automaticky obejít CloudFlare ochranu před boty pomocí
+projektu [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr).
 
 Narozdíl od originálního Vžum je tato verze napsaná v Pythonu, dá se provozovat
 jednoduše i na Linuxu a zdrojový kód je veřejně dostupný, což umožňuje další
@@ -145,8 +145,8 @@ instrukce na [webu Tk](https://tkdocs.com/tutorial/install.html)).
 
 FlareSolverr nainstalujte podle návodu na https://github.com/FlareSolverr/FlareSolverr.
 
-Doporučený způsob instalace je prostřednictvím Docker kontejneru na Linuxu. V tomto
-případě se ujistěte, že je kontejner spuštěn s parametrem `--network host`:
+Doporučený způsob instalace je prostřednictvím Docker kontejneru. V tomto případě
+se ujistěte, že je kontejner spuštěn s parametrem `--network host`:
 
 ````
 docker run -d \

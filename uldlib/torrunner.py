@@ -60,7 +60,7 @@ class TorRunner:
             else:  # total size is unknown
                 self.log_func("Downloading GeoIP DB: read %d" % (readsofar))
 
-        # TODO: Add a feature to autodetect and update GeoIP DBs when never versions are available
+        # TODO: Add a feature to autodetect and update GeoIP DBs when newer versions are available
         
         if not os.path.exists(const.GEOIP_FILENAME):
             self.log_func(f"Downloading Tor GeoIP DB from {const.TOR_GEOIP_DB_DOWNLOAD_URL}")
