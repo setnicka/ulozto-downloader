@@ -1,16 +1,37 @@
 # Ulož.to downloader
 
-## Language disclaimer (English)
+## Konec Ulož.to downloaderu
+
+Ulož.to bohužel k 1. 12. 2023 přestalo nabízet stahování cizích souborů. Od teď
+funguje již jen jako [Ulož.to Disk](https://ulozto.cz/) a programy typu
+ulozto-downloader ztrácejí význam a již nejsou použitelné.
+
+Z tohoto důvodu je další rozvoj ulozto-downloaderu ukončen. Děkuji všem, kteří
+svoji troškou (ať už pull requestem, hlášením chyb nebo jenom tím, že ho používali
+a říkali o tom ostatním) přispěli k jeho rozšiřování, byl to hezký projekt.
+
+Sbohem a díky za všechny ryby :)
+
+## End of Ulož.to downloader
+
+Unfortunately, Ulož.to stopped offering downloads of shared files on December 1,
+2023. Now it is only an [Ulož.to Disk](https://ulozto.cz/) and programs like the
+ulozto-downloader lose their meaning and are no longer usable.
+
+For this reason, further development of the ulozto-downloader is ceased. Thanks
+to everyone who added their bits for the ulozto-downloader (either by pull
+request, reporting errors or just by using it and spreading its popularity). It
+was a nice project.
+
+So long and thanks for all the fish :)
+
+---
+
+## English info
 
 This is a parallel downloader from [Ulož.to](http://ulozto.cz) with automatic
 CAPTCHA solving. This README is in Czech but the program itself and its help are
 in English (try to run it with `--help` option).
-
-When contributing to this project, please use English in the code. Issues and
-pull request comments could be in Czech or English, I will discuss them
-according to the thread language :)
-
----
 
 ## Úvod
 
@@ -206,3 +227,9 @@ další stahovací linky a postupně navyšuje počet najednou stahovaných čá
 ## Další návody a dokumentace
 
 * [Vytvoření Windows EXE](doc/win_exe.md)
+
+## Contributing
+
+When contributing to this project, please use English in the code. Issues and
+pull request comments could be in Czech or English, I will discuss them
+according to the thread language :)
