@@ -9,35 +9,76 @@ termux-setup-storage
 ```shell
 pkg upgrade
 ```
-4.) Nainstalujte Python:
+### Instalujte Flaresolverr
+1.) 
+```
+pkg install proot-distro
+```
+2.)
+```
+proot-distro install ubuntu
+```
+3.)
+```
+proot-distro login ubuntu
+```
+4.)
+```
+apt install skopeo umoci
+```
+5.)
+```
+cd /data/data/com.termux/files/home
+skopeo copy docker://ghcr.io/flaresolverr/flaresolverr:v3.3.6 oci:flaresolverr:v3.3.6
+umoci unpack --image flaresolverr:v3.3.6 rootfs
+```
+(Toto bude nějakou dobu trvat)
+
+6.) Přesuňte soubor [Flaresolverr.sh](/Termux/Flaresolverr.sh) do složky rootfs v uložišti termuxu (třeba pomocí správce souborů jako Total commander)
+
+7.) 
+```
+cd rootfs
+chmod +rwx flaresolverr.sh
+./flaresolverr.sh
+```
+8.)
+```
+su flaresolverr
+echo 127.0.0.1 localhost > /etc/hosts
+python -u /app/flaresolverr.py
+```
+### Ulozto-downloader
+1.) Otevřete novou "Session" potažením prstem z levé strany obrazovky a stisknutím "New session".
+
+2.) Nainstalujte Python:
 ```shell
 pkg install python3
 ```
-5.) Nainstalujte Numpy:
+3.) Nainstalujte Numpy:
 ```shell
-MATHLIB="m" pip install numpy
+pkg install python-numpy
 ```
-6.) Nainstalujte libjpeg-turbo:
+4.) Nainstalujte libjpeg-turbo:
 ```shell
 pkg install libjpeg-turbo
 ```
-7.) Nainstalujte Tor:
+5.) Nainstalujte Tor:
 ```shell
 pkg install tor
 ```
-8.) Nainstalujte Tkinter:
+6.) Nainstalujte Tkinter:
 ```shell
 pkg install python-tkinter
 ```
-9.) Nainstalujte Git:
-```shell
-pkg install git
-```
-10.) Nainstalujte opravenou verzi Ulozto-downloaderu:
+7.) Nainstalujte Ulozto-downloader:
 ```shell
 pip install ulozto-downloader
 ```
-11.) Nainstalujte grafické rozhraní, ve kterém budete opisovat captcha kódy, podle návodu [zde](https://wiki.termux.com/wiki/Graphical_Environment).
+8.) Nainstalujte grafické rozhraní, ve kterém budete opisovat captcha kódy, podle návodu [zde](https://wiki.termux.com/wiki/Graphical_Environment).
+
+### Použití
+Před každým spuštěním ulozto-downloaderu budete muset zopakovat kroky 7 a 8 (kromě příkazu chmod). A následně spustit stahování v nové "Session".
 
 ## MacOS
 
