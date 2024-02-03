@@ -10,10 +10,10 @@ import cloudscraper
 from uldlib.captcha import CaptchaSolver
 from uldlib.frontend import LogLevel, Frontend
 from uldlib.torrunner import TorRunner
+from uldlib.cfsolver import CFSolver
 
 from .const import XML_HEADERS, DEFAULT_CONN_TIMEOUT
 from .linkcache import LinkCache
-
 
 def parse_single(text, regex):
     p = re.compile(regex, re.IGNORECASE)
@@ -22,11 +22,9 @@ def parse_single(text, regex):
         return None
     return result[0]
 
-
 def strip_tracking_info(url: str):
     return url.split("#!")[0] if "#!" in url else url
-
-
+    
 class Page:
     url: str
     body: str
@@ -43,11 +41,14 @@ class Page:
     alreadyDownloaded: int
     password: str
 
+    cloudflareWAFActive: bool = False
+    enforceCFsolver: bool = False
+
     needPassword: bool = False
 
     linkCache: Optional[LinkCache] = None
 
-    def __init__(self, url: str, temp_dir: str, parts: int, password: str, frontend: Frontend, tor: TorRunner, enforce_tor: bool, conn_timeout=DEFAULT_CONN_TIMEOUT):
+    def __init__(self, url: str, temp_dir: str, parts: int, password: str, frontend: Frontend, tor: TorRunner, cfsolver: CFSolver, enforce_tor: bool, conn_timeout=DEFAULT_CONN_TIMEOUT):
         """Check given url and if it looks ok GET the Uloz.to page and save it.
 
             Arguments:
@@ -57,6 +58,9 @@ class Page:
                 password (str): password to access the Uloz.to file
                 frontend (Frontend): frontend object for password prompt (if supported)
                 tor (TorRunner): tor runner instance
+                cfsolver (CFSolver): Flaresoverr instance
+                enforce_tor (bool): Whether Tor shall be used for all connections or only for download URL retrieval
+                conn_timeout (int): Download timeout
             Raises:
                 RuntimeError: On invalid URL, deleted file or other error related to getting the page.
         """
@@ -67,17 +71,13 @@ class Page:
         self.password = password
         self.frontend = frontend
         self.tor = tor
+        self.cfsolver = cfsolver
         self.enforce_tor = enforce_tor
         self.conn_timeout = conn_timeout
-        self.scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'chrome',
-                'platform': 'android',
-                'desktop': False
-            }
-        )
+        self.request_cookies = {}
+        self.request_user_agent = ""
 
-        if (self.enforce_tor):
+        if self.enforce_tor:
             self.tor.launch()  # ensure that TOR is running
 
         parsed_url = urlparse(self.url)
@@ -96,10 +96,10 @@ class Page:
                       "lim": 0, "block": 0, "net": 0}  # statistics
 
         s = requests.Session()
-        if (self.enforce_tor):
+        if self.enforce_tor:
             # In case TOR enforcing mode is on, use TOR also for the initial request
             s.proxies = self.tor.proxies
-            self.scraper.proxies = self.tor.proxies
+            self.cfsolver.set_proxy(self.tor.proxies)
 
         # special case for Pornfile.cz run by Uloz.to - confirmation is needed
         if parsed_url.hostname == "pornfile.cz":
@@ -117,7 +117,7 @@ class Page:
 
         r = s.get(self.url)
         self.baseURL = "{uri.scheme}://{uri.netloc}".format(uri=parsed_url)
-
+        
         if r.status_code == 451:
             raise RuntimeError(
                 f"File was deleted from {self.pagename} due to legal reasons (status code 451)")
@@ -125,12 +125,15 @@ class Page:
             self.needPassword = True
             r = self.enter_password(s)
         elif r.status_code == 403:
-            while True:
-                try:
-                    r = self.scraper.get(self.url)
-                    break
-                except cloudscraper.exceptions.CloudflareChallengeError:
-                    self.frontend.main_log("Cloudflare scraper error, trying again...")
+            self.frontend.main_log(f"Cloudflare WAF detected, initializing automated Cloudflare Solver (timeout {self.cfsolver.get_timeout()} sec).", level=LogLevel.INFO)
+            r = self.cfsolver.get(self.url)
+            self.cloudflareWAFActive = True
+            self.request_cookies = r.cookies
+            self.request_user_agent = r.user_agent
+            
+            if r.status_code == 403:
+                raise RuntimeError(
+                    f"{self.pagename} returned status code {r.status_code} again. Bypassing Cloudflare challenge failed.")
         elif r.status_code == 404:
             raise RuntimeError(
                 f"{self.pagename} returned status code {r.status_code}, file does not exist")
@@ -152,7 +155,6 @@ class Page:
         Raises:
             RuntimeError: When mandatory fields cannot be parsed.
         """
-
         # Parse filename only to the first | (Uloz.to sometimes add titles like "name | on-line video | Ulož.to" and so on)
         self.filename = parse_single(self.body, r'<title>([^\|]*)\s+\|.*</title>')
 
@@ -185,7 +187,18 @@ class Page:
 
         # Check if slowDirectDownload or form data for CAPTCHA was parsed
         if not download_found:
-            raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
+            if "page is blocked due to the decision" in self.body:
+                if self.enforce_tor:
+                    raise RuntimeError(f"The page is blocked \"due to the decision of the authorities in your area\"."
+                               + " This is most likely due to the exit IP of the current Tor circuit. Please run the"
+                               + " downloader again to establish a new Tor circuit.")
+                    # TODO: Retry automatically instead telling the user to do so.
+                else:
+                    raise RuntimeError(f"The page is blocked \"due to the decision of the authorities in your area\"."
+                               + " You can try to restart the downloader with the -t option, to enforce the Tor network for"
+                               + " all communication with the remote server.")
+            else:
+                raise RuntimeError(f"Cannot parse {self.pagename} page to get download information,"
                                + " no direct download URL and no CAPTCHA challenge URL found")
 
     # print TOR network error and += stats
@@ -199,17 +212,18 @@ class Page:
         self.stats["all"] += 1
         ok = False
         reload = True
-
         # search errors..
         good_str = "afterDownloadUrl"
         blk_str = 'blocked'
         lim_str = 'limit-exceeded'
         bcp_str = "formErrorContent"
+        cfl_str = "Just a moment..."
 
         # msgs
         lim_msg = "IP limited TOR exit.. get new TOR session"
         blk_msg = "Blocked TOR exit IP.. get new TOR session"
         bcp_msg = "Bad captcha.. Try again using same IP"
+        cfl_msg = "Cloudflare WAF blocked.. get new TOR session"
 
         if good_str in linkdata:
             self.stats["ok"] += 1
@@ -226,6 +240,10 @@ class Page:
             self.stats["bad"] += 1
             log_func(bcp_msg, level=LogLevel.ERROR)
             reload = False  # bad captcha same IP again
+        elif cfl_str in linkdata:
+            self.stats["block"] += 1
+            self.cloudflareWAFActive = True
+            log_func(cfl_msg, level=LogLevel.ERROR)
 
         return (ok, reload)
 
@@ -260,10 +278,16 @@ class Page:
 
             self.tor.launch()  # ensure that TOR is running
 
+            if self.cloudflareWAFActive or self.enforceCFsolver:
+                self.cfsolver.set_proxy(self.tor.proxies)
+
             # reload tor after 1. use or all except badCaptcha case
             reload = False
             if self.stats["all"] > 0 or reload:
                 self.tor.reload()
+                # CloudFlare solver session needs to be reset in order to pick up the new Tor circuit 
+                if self.cloudflareWAFActive or self.enforceCFsolver:
+                    self.cfsolver.destroy_session()
 
             try:
                 s = requests.Session()
@@ -284,30 +308,45 @@ class Page:
                         "password_send": "Odeslat",
                         "_do": "passwordProtectedForm-submit",
                     })
+                
+                headers = XML_HEADERS
+
+                # Use the User Agent from flaresolverr is present
+                if self.request_user_agent:
+                    headers["User-Agent"] = self.request_user_agent
 
                 resp = requests.Response()
 
                 if self.isDirectDownload:
-                    solver.log(f"TOR get downlink (timeout {self.conn_timeout})")
+                    solver.log(f"TOR get downlink (timeout {self.conn_timeout} sec)")
                     resp = s.get(self.captchaURL,
-                                 headers=XML_HEADERS, timeout=self.conn_timeout, proxies=self.tor.proxies if not self.enforce_tor else {})
+                                 headers=headers, timeout=self.conn_timeout, proxies=self.tor.proxies, cookies=self.request_cookies)
                 else:
-                    solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout})")
-                    r = s.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies if not self.enforce_tor else {})
+                    solver.log(f"TOR get new CAPTCHA (timeout {self.conn_timeout} sec)")
 
-                    if r.status_code == 403:
-                        r = self.scraper.get(self.captchaURL, headers=XML_HEADERS, proxies=self.tor.proxies if not self.enforce_tor else {})
+                    if not self.enforceCFsolver:
+                        r = s.get(self.captchaURL, headers=headers, proxies=self.tor.proxies, cookies=self.request_cookies)
+                        if r.status_code == 403:
+                            self.frontend.main_log(f"Cloudflare WAF still detected, enforcing automated Cloudflare Solver...", level=LogLevel.INFO)
+                            self.enforceCFsolver = True
+                            continue
+                    else:
+                        solver.log(f"Solving Cloudflare WAF challenge (timeout {self.cfsolver.get_timeout()} sec)...")
+                        r = self.cfsolver.get(self.captchaURL)
+                        self.request_cookies = r.cookies
+                        self.request_user_agent = r.user_agent
+                        headers["User-Agent"] = self.request_user_agent
 
                     # <img class="xapca-image" src="//xapca1.uloz.to/0fdc77841172eb6926bf57fe2e8a723226951197/image.jpg" alt="">
                     captcha_image_url = parse_single(
                         r.text, r'<img class="xapca-image" src="([^"]*)" alt="">')
-
                     if captcha_image_url is None:
                         solver.log("ERROR: Cannot parse CAPTCHA image URL from the page. Changing Tor circuit.", level=LogLevel.ERROR)
                         self.stats["all"] += 1
                         self.stats["net"] += 1
                         solver.stats(self.stats)
                         reload = True
+
                         continue
 
                     captcha_data = {}
@@ -322,14 +361,18 @@ class Page:
 
                     captcha_data["captcha_value"] = captcha_answer
 
-                    solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout})")
+                    solver.log(f"CAPTCHA answer '{captcha_answer}' (timeout {self.conn_timeout} sec)")
 
-                    resp = s.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, timeout=self.conn_timeout)
+                    if not self.enforceCFsolver:
+                        resp = s.post(self.captchaURL, data=captcha_data,
+                                  headers=headers, timeout=self.conn_timeout, proxies=self.tor.proxies, cookies=self.request_cookies)
+                    else:
+                        solver.log(f"Active Cloudflare WAF previously detected, using automated bypass mode by default...")
+                        resp = self.cfsolver.XHRpost(self.captchaURL, data=captcha_data, timeout=self.conn_timeout)
 
-                    if resp.status_code == 403:
-                        resp = self.scraper.post(self.captchaURL, data=captcha_data,
-                                  headers=XML_HEADERS, timeout=self.conn_timeout)
+                # Try the next link again without CF solver
+                if self.enforceCFsolver:
+                    self.enforceCFsolver = False
 
                 # generate result or break
                 result = self._link_validation_stat(resp, solver.log)
@@ -343,7 +386,7 @@ class Page:
                     self.numTorLinks += 1
                     yield dlink
                 elif self.isDirectDownload:
-                    solver.log("Direct download does no seem to work, trying with captcha resolution instead...")
+                    solver.log("Direct download does not seem to work, trying with captcha resolution instead...")
                     self.isDirectDownload = False
 
             except requests.exceptions.ConnectionError:
@@ -355,10 +398,6 @@ class Page:
             except requests.exceptions.ReadTimeout:
                 self._error_net_stat(
                     "ReadTimeout error, try new TOR session.", solver.log)
-            except cloudscraper.exceptions.CloudflareChallengeError as e:
-                self._error_net_stat(
-                    f"Cloudflare scrapper error: {e}. Try new TOR session.", solver.log)
-                time.sleep(1)
 
             solver.stats(self.stats)
 

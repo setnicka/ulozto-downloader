@@ -16,3 +16,8 @@ parser.py
 # Ignore all local history of files
 .history
 .ionide
+
+### Tor
+.tor*
+error.log
+geoip*.db

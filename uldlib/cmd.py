@@ -9,6 +9,7 @@ from uldlib.frontend import ConsoleFrontend, JSONFrontend
 from uldlib import utils
 from uldlib.torrunner import TorRunner
 from uldlib.utils import LogLevel
+from uldlib.cfsolver import CFSolver
 
 # TODO Automatic find all types implementing Frontend and put into this dict
 available_frontends = {"console": ConsoleFrontend, "JSON": JSONFrontend}
@@ -62,7 +63,6 @@ def run():
     g_captcha.add_argument(
         '--manual-captcha', default=False, action="store_true",
         help='Solve CAPTCHAs by manual input')
-
     g_tor = parser.add_argument_group("TOR related options")
     g_tor.add_argument(
         '-t', '--enforce-tor', default=False, action="store_true",
@@ -70,6 +70,14 @@ def run():
     g_tor.add_argument(
         '--conn-timeout', metavar='SEC', default=const.DEFAULT_CONN_TIMEOUT, type=int,
         help='Set connection timeout for TOR sessions in seconds')
+    
+    g_cf = parser.add_argument_group("Cloudflare WAF solver related options")
+    g_cf.add_argument(
+        '--cf-endpoint', metavar='URL', default=const.DEFAULT_CF_ENDPOINT, type=str,
+        help='Set a custom endpoint URL of the Flaresolverr service.')
+    g_cf.add_argument(
+        '--cf-timeout', metavar='SEC', default=const.DEFAULT_CF_TIMEOUT, type=int,
+        help='Set a custom timeout for Cloudflare WAF solver in seconds')
 
     g_other = parser.add_argument_group("Other options")
     g_other.add_argument('--version', action='version', version=__version__)
@@ -125,7 +133,13 @@ def run():
     just_fix_windows_console()
 
     tor = TorRunner(args.temp, frontend.tor_log)
-    d = downloader.Downloader(tor, frontend, solver)
+    try:
+        cfsolver = CFSolver(timeout=args.cf_timeout, endpoint=args.cf_endpoint)
+    except RuntimeError as e:
+        frontend.main_log(str(e), level=LogLevel.ERROR)
+        sys.exit(1)
+
+    d = downloader.Downloader(tor, cfsolver, frontend, solver)
 
     # Register sigint handler
     def sigint_handler(sig, frame):

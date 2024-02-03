@@ -41,6 +41,9 @@ kódů pomocí TensorFlow modelu z projektu
 [ulozto-captcha-breaker](https://github.com/JanPalasek/ulozto-captcha-breaker)
 (credits to Jan Palasek).
 
+Stahovač je schopen automaticky obejít CloudFlare ochranu před boty pomocí
+projektu [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr).
+
 Narozdíl od originálního Vžum je tato verze napsaná v Pythonu, dá se provozovat
 jednoduše i na Linuxu a zdrojový kód je veřejně dostupný, což umožňuje další
 forky a rozšíření do budoucna. Například by mohla vzniknout "serverová" verze
@@ -55,6 +58,7 @@ s webovým rozhraním.
   [ulozto-captcha-breaker](https://github.com/JanPalasek/ulozto-captcha-breaker) (thx Jan Palasek)
   * Louská kódy pomocí natrénovaného TensorFlow modelu
 * Download linky získává přes Tor, aby se vyhnul nové limitaci ze strany Uloz.to
+* Linky chráněné před boty obchází pomocí [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr)
 * Umí opakovaně využít stejný stahovací link pro více částí
   * Ulož.to nyní (podzim 2020) umožňuje získat jen dva stahovací linky za
     minutu, ale stejný link je možné používat po dostahování původní části
@@ -88,6 +92,7 @@ instalace samotného ulozto-downloaderu potřeba zajistit ještě několik dalš
 * Jeden z:
   * **TensorFlow Lite** pro automatické louskání CAPTCHA kódů
   * **Tkinter** když budete používat ruční opisování CAPTCHA kódů
+* **FlareSolverr** pro automatické obcházaní CloudFlare bot protection
 
 ### Instalace TORu
 
@@ -156,6 +161,30 @@ systému instalovaný Tkinter na zobrazení okénka s obrázkem.
 Bohužel není na PyPI, takže je potřeba instalovat ručně. Často už je instalovaný,
 ale pokud by náhodou nebyl, tak bývá v balíčku `python3-tk` (případně následujte
 instrukce na [webu Tk](https://tkdocs.com/tutorial/install.html)).
+
+### Instalace FlareSolverr
+
+FlareSolverr nainstalujte podle návodu na https://github.com/FlareSolverr/FlareSolverr.
+
+Doporučený způsob instalace je prostřednictvím Docker kontejneru. V tomto případě
+se ujistěte, že je kontejner spuštěn s parametrem `--network host`:
+
+````
+docker run -d \
+  --name=flaresolverr \
+  -p 8191:8191 \
+  -e LOG_LEVEL=info \
+  --restart unless-stopped \
+  --network host \
+  ghcr.io/flaresolverr/flaresolverr:latest
+````
+
+**Pozor:** FlareSolverr vypouští novou verzi pokaždé, když CloudFlare změní svůj bot 
+protection. Ujistěte se, že kontejner běží na nejnovější verzi FlareSolverr image.
+
+Uložto Downloader očekává, že FlareSolverr service bude dostupný na
+http://127.0.0.1:8191/v1. V případě, že service běží na jiné adrese,
+zadejte ji pomocí argumentu `--cf-endpoint`.
 
 ### Instalace Ulož.to downloaderu
 

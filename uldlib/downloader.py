@@ -12,6 +12,7 @@ from uldlib.page import Page
 from uldlib.part import DownloadPart
 from uldlib.segfile import SegFileLoader
 from uldlib.torrunner import TorRunner
+from uldlib.cfsolver import CFSolver
 from uldlib.utils import DownloaderError, DownloaderStopped, LogLevel
 
 
@@ -32,11 +33,12 @@ class Downloader:
     download_url_queue: Queue
     parts: int
     tor: TorRunner
+    cfsolver: CFSolver
     page: Page
 
     password: str
 
-    def __init__(self, tor: TorRunner, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
+    def __init__(self, tor: TorRunner, cfsolver: CFSolver, frontend: Type[Frontend], captcha_solver: Type[CaptchaSolver]):
         """Initialize the Downloader.
 
            The TorRunner could be launched or not, the .launch() method will be called when needed.
@@ -56,6 +58,7 @@ class Downloader:
         self.cli_initialized = False
         self.conn_timeout = None
         self.tor = tor
+        self.cfsolver = cfsolver
 
     def terminate(self, quiet: bool = False):
         if self.terminating:
@@ -209,15 +212,16 @@ class Downloader:
 
         try:
             self.page = Page(
-                url=url,
-                temp_dir=temp_dir,
-                parts=parts,
-                password=password,
-                frontend=self.frontend,
-                tor=self.tor,
-                enforce_tor=self.enforce_tor,
-                conn_timeout=self.conn_timeout
-            )
+                    url=url,
+                    temp_dir=temp_dir,
+                    parts=parts,
+                    password=password,
+                    frontend=self.frontend,
+                    tor=self.tor,
+                    cfsolver=self.cfsolver,
+                    enforce_tor=self.enforce_tor,
+                    conn_timeout=self.conn_timeout
+                )
             page = self.page  # shortcut
             page.parse()
 
